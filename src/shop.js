@@ -4,8 +4,8 @@ import {
   MAX_SPEED_LEVEL, MAX_GRIP_LEVEL,
 } from './constants.js?v=17';
 
-const SHOP_X = 18;
-const SHOP_Z = 8;
+const SHOP_X = 0;    // centred between the two front bases (x=±26)
+const SHOP_Z = 14;   // behind the road-start platform, beyond front bases
 
 export class Shop {
   constructor(scene, economy, player, audio = null) {

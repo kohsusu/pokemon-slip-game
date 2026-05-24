@@ -111,11 +111,11 @@ export class Player {
       this.mesh.rotation.y = Math.atan2(dx, dz);
     }
 
-    // Near base/shop (z > -8): allow wide X movement; on road: clamp to road width
-    const maxX = this.mesh.position.z > -8 ? 24 : ROAD_WIDTH / 2 - 0.5;
+    // Near base/shop (z > -20): allow wide X movement; on road: clamp to road width
+    const maxX = this.mesh.position.z > -20 ? 30 : ROAD_WIDTH / 2 - 0.5;
     this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x, -maxX, maxX);
     const minZ = -(NUM_ZONES * ZONE_LENGTH);
-    this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, minZ, 15);
+    this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, minZ, 20);
     this.mesh.position.y = 0;
 
     // Bob held pokemon sprites

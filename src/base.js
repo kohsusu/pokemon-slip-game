@@ -5,13 +5,24 @@ const BASE_W  = 18;
 const BASE_D  = 12;
 const FLOOR_Y = 0.5;
 
-// ── Multiplayer: per-player base positions ────────────────────────────────
-// All placed at z > −8 so the player clamping allows x = ±24
+// ── Multiplayer: per-player base positions (four corners) ────────────────
+//
+//   z=10 (front row):  players 0 & 1   — above the road start
+//   z=-6 (back row):   players 2 & 3   — just behind the road start
+//
+//   Same-side gap verification (BASE_D = 12):
+//     front back-edge  = 10 − 6 =  4
+//     back  front-edge = −6 + 6 =  0   → 4-unit gap, no overlap ✓
+//
+//   Wave safety (WAVE_ACTIVE_END_Z = −10):
+//     back base back-edge = −6 − 6 = −12
+//     wave sweeps −12 → −10 (2 units) but !inBase protects players ✓
+//
 const _BASE_POSITIONS = [
-  { x:  22, z: -1 },   // 0: red
-  { x: -22, z: -1 },   // 1: blue
-  { x:  22, z: -6 },   // 2: green
-  { x: -22, z: -6 },   // 3: orange
+  { x:  26, z:  10 },   // 0: red    (right-front)
+  { x: -26, z:  10 },   // 1: blue   (left-front)
+  { x:  26, z:  -6 },   // 2: green  (right-back)
+  { x: -26, z:  -6 },   // 3: orange (left-back)
 ];
 
 /** Return the 3-D position of the base for a given player slot (0-3). */
@@ -22,7 +33,9 @@ export function getBasePos(playerId) {
 /** Return the warp-arrival position (just toward the road from the base). */
 export function getBaseWarpPos(playerId) {
   const sx = (playerId % 2 === 0) ? 1 : -1;
-  return { x: sx * 10, z: 3 };
+  // Front players (0,1) warp near their front base; back players (2,3) near their back base
+  const sz = (playerId < 2) ? 12 : -3;
+  return { x: sx * 14, z: sz };
 }
 
 // ── PlayerBase ────────────────────────────────────────────────────────────
