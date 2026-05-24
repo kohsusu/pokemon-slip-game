@@ -1,5 +1,8 @@
 # 🌊 小心地滑！救出寶可夢
 
+<img width="1909" height="986" alt="image" src="https://github.com/user-attachments/assets/4534f69d-53b1-47d1-b739-2710aea35cae" />
+
+
 一款在滑溜地面上搬運寶可夢、建立基地、累積財富的休閒遊戲。支援**單人模式**與**四人連線模式**。
 
 ![遊戲截圖](https://raw.githubusercontent.com/kohsusu/pokemon-slip-game/main/preview.png)
