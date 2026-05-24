@@ -374,6 +374,15 @@ function animate() {
   lastTime  = now;
 
   player.update(dt);
+
+  // ── Tier zone barrier: prevent entering locked tiers ─────────────────────
+  for (let _t = 1; _t < 3; _t++) {
+    if (!economy.unlockedTiers[_t]) {
+      const _bz = -(_t * ZONES_PER_TIER * ZONE_LENGTH);
+      if (player.position.z < _bz) player.mesh.position.z = _bz;
+    }
+  }
+
   handleInteraction();
 
   tsunami.update(dt, player, () => {
