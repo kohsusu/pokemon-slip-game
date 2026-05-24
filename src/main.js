@@ -11,8 +11,95 @@ import { AudioManager }    from './audio.js?v=16';
 import { TouchControls }   from './touch_controls.js?v=16';
 import {
   ZONE_LENGTH, ZONES_PER_TIER, TIER_UNLOCK_COST, TIER_NAMES,
-  TIER_CSS_COLORS, ROAD_WIDTH,
+  TIER_CSS_COLORS, ROAD_WIDTH, SPRITE_BASE,
 } from './constants.js?v=17';
+
+// ── Victory ────────────────────────────────────────────────────────────────
+const VICTORY_THRESHOLD = 1_000_000_000_000;  // 1000B
+let   _gameOver         = false;
+
+const _RAIN_IDS = [
+  25, 133, 1, 4, 7, 6, 9, 3,
+  149, 131, 143, 130, 150, 151,
+  249, 250, 384, 493, 145, 146, 144, 718, 791, 792,
+];
+
+function _fmtMoney(n) {
+  if (n >= 1e12) return `${(n / 1e9).toFixed(0)}B`;
+  if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
+  return String(Math.floor(n));
+}
+
+function _injectRainCSS() {
+  if (document.getElementById('_rain-css')) return;
+  const s = document.createElement('style');
+  s.id = '_rain-css';
+  s.textContent = `
+    @keyframes _pkfall {
+      from { top: -130px; opacity: 1; }
+      to   { top: 110vh;  opacity: 0.85; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function _spawnRainPokemon() {
+  const id   = _RAIN_IDS[Math.floor(Math.random() * _RAIN_IDS.length)];
+  const size = 52 + Math.floor(Math.random() * 72);
+  const dur  = (2.5 + Math.random() * 3.5).toFixed(2);
+  const rot  = ((Math.random() - 0.5) * 70).toFixed(1);
+  const img  = document.createElement('img');
+  img.src = `${SPRITE_BASE}${id}.png`;
+  img.style.cssText =
+    `position:fixed;left:${(Math.random() * 98).toFixed(1)}vw;` +
+    `width:${size}px;height:${size}px;object-fit:contain;` +
+    `z-index:201;pointer-events:none;` +
+    `animation:_pkfall ${dur}s linear forwards;` +
+    `transform:rotate(${rot}deg);` +
+    `filter:drop-shadow(0 4px 12px rgba(0,0,0,0.55));`;
+  document.body.appendChild(img);
+  setTimeout(() => img.remove(), (+dur + 0.6) * 1000);
+}
+
+function startVictoryCelebration(totalMoney) {
+  if (_gameOver) return;
+  _gameOver = true;
+  _injectRainCSS();
+
+  const ov = document.createElement('div');
+  ov.id = '_victory-overlay';
+  ov.style.cssText =
+    'position:fixed;inset:0;z-index:500;' +
+    'background:rgba(0,0,30,0.80);' +
+    'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+    'font-family:Arial,sans-serif;color:#fff;pointer-events:none;';
+  ov.innerHTML = `
+    <div style="font-size:80px;margin-bottom:8px;">🎉</div>
+    <div style="font-size:42px;font-weight:bold;letter-spacing:2px;
+                text-shadow:0 0 40px #FFD700,0 0 80px #FF8C00;margin-bottom:12px;">
+      目標達成！おめでとう！
+    </div>
+    <div style="font-size:24px;color:#FFD700;margin-bottom:6px;">
+      💰 最終金額：$${_fmtMoney(totalMoney)}
+    </div>
+    <div style="font-size:14px;color:#aef;opacity:0.85;">
+      🌟 累積突破 1,000B！恭喜！
+    </div>
+  `;
+  document.body.appendChild(ov);
+
+  let elapsed = 0;
+  const iv = setInterval(() => {
+    elapsed += 0.2;
+    const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      setTimeout(_spawnRainPokemon, Math.random() * 180);
+    }
+    if (elapsed >= 30) clearInterval(iv);
+  }, 200);
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────
 const container = document.getElementById('canvas-container');
@@ -290,6 +377,7 @@ function animate() {
   handleInteraction();
 
   tsunami.update(dt, player, () => {
+    if (_gameOver) return;
     const dropPos = player.position.clone();
     const dropped = player.warpToBase();
     dropped.forEach((p, i) => {
@@ -322,6 +410,11 @@ function animate() {
     hideTierGate(newTier);
     audio.playUpgrade?.();
     showMsg(`🎉 ${TIER_NAMES[newTier]} 區域已解鎖！快去探索！`);
+  }
+
+  // ── 勝利條件（單人：自己的錢 ≥ 1000B）────────────────────────────────────
+  if (!_gameOver && economy.money >= VICTORY_THRESHOLD) {
+    startVictoryCelebration(economy.money);
   }
 
   updateWaveIndicator();

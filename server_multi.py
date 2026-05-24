@@ -102,6 +102,9 @@ _world_pk  : dict = {}   # netId → pokemon_dict  (在地上的)
 _carried_pk: dict = {}   # netId → pokemon_dict  (被撿走的)
 _pk_seq    : int  = 0
 
+_game_ended: bool = False          # 勝利條件觸發後只廣播一次
+VICTORY_THRESHOLD = 1_000_000_000_000  # 1000B
+
 
 def _gen_pokemon(zone_idx: int) -> dict:
     global _pk_seq
@@ -211,6 +214,7 @@ async def handler(ws) -> None:
 
             # ── 位置 ──────────────────────────────────────────────────────────
             if mtype == 'position':
+                global _game_ended
                 info.update({
                     'x':         float(msg.get('x', 0)),
                     'z':         float(msg.get('z', 0)),
@@ -236,6 +240,23 @@ async def handler(ws) -> None:
                     'holding': info['holding'], 'money': info['money'],
                     'carriedPokemon': carried_list,
                 }, exclude=ws)
+
+                # ── 勝利條件：所有玩家金錢總和 ≥ 1000B ─────────────────────────
+                if not _game_ended:
+                    total = sum(p['money'] for p in players.values())
+                    if total >= VICTORY_THRESHOLD:
+                        _game_ended = True
+                        scores = [
+                            {'id': p['id'], 'name': p['name'],
+                             'color': p['color'], 'money': p['money']}
+                            for p in players.values()
+                        ]
+                        await _broadcast({
+                            'type': 'game_end',
+                            'totalMoney': total,
+                            'scores': scores,
+                        })
+                        print(f'[GAME ] 遊戲結束！總金額 = {total:,}')
 
             # ── 寶可夢：撿起 ──────────────────────────────────────────────────
             elif mtype == 'pokemon_pickup':
