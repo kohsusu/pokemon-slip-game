@@ -103,7 +103,7 @@ _carried_pk: dict = {}   # netId → pokemon_dict  (被撿走的)
 _pk_seq    : int  = 0
 
 _game_ended: bool = False          # 勝利條件觸發後只廣播一次
-VICTORY_THRESHOLD = 1_000_000_000_000  # 1000B
+VICTORY_THRESHOLD = 10_000_000_000_000  # 10000B
 
 
 def _gen_pokemon(zone_idx: int) -> dict:

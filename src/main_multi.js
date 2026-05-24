@@ -19,7 +19,7 @@ import {
 const _texLoader = new THREE.TextureLoader();
 
 // ── Victory ────────────────────────────────────────────────────────────────────
-const VICTORY_THRESHOLD = 1_000_000_000_000;   // 1000B
+const VICTORY_THRESHOLD = 10_000_000_000_000;  // 10000B
 let   _gameOver         = false;
 
 // Pokémon IDs used for the rain celebration
@@ -107,7 +107,7 @@ function startVictoryCelebration(totalMoney, scores) {
       💰 總金額：$${_fmtMoney(totalMoney)}
     </div>
     <div style="font-size:14px;color:#aef;margin-bottom:20px;opacity:0.85;">
-      🌟 所有人合計突破 1,000B！
+      🌟 所有人合計突破 10,000B！
     </div>
     <div style="text-align:center;line-height:2;">${scoreHtml}</div>
   `;
@@ -127,7 +127,8 @@ function startVictoryCelebration(totalMoney, scores) {
 
 // ── Network URL ────────────────────────────────────────────────────────────────
 const params  = new URLSearchParams(location.search);
-const wsHost  = params.get('host') || 'localhost';
+// 若從區網 IP 開啟頁面（非 localhost），自動以該 IP 作為 WS 主機
+const wsHost  = params.get('host') || location.hostname || 'localhost';
 const WS_URL  = `ws://${wsHost}:7780`;
 const net     = new NetworkManager(WS_URL);
 

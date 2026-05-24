@@ -15,7 +15,7 @@ import {
 } from './constants.js?v=17';
 
 // ── Victory ────────────────────────────────────────────────────────────────
-const VICTORY_THRESHOLD = 1_000_000_000_000;  // 1000B
+const VICTORY_THRESHOLD = 10_000_000_000_000; // 10000B
 let   _gameOver         = false;
 
 const _RAIN_IDS = [
