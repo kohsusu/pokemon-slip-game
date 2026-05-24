@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { createScene }     from './scene.js?v=16';
 import { Road }            from './road.js?v=16';
-import { Player }          from './player.js?v=17';
+import { Player }          from './player.js?v=18';
 import { TsunamiMechanic } from './tsunamiMechanic.js?v=16';
 import { PokemonManager }  from './pokemon.js?v=17';
 import { PlayerBase, getBasePos, getBaseWarpPos } from './base.js?v=18';

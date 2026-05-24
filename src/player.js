@@ -82,7 +82,7 @@ export class Player {
     // Walk: fixed base speed (no upgrade bonus)
     // Sprint: base * multiplier + upgrade bonus
     if (this._sprinting) {
-      return PLAYER_BASE_SPEED * PLAYER_SPRINT_MULT + this.speedLevel * 2.5;
+      return PLAYER_BASE_SPEED * PLAYER_SPRINT_MULT + this.speedLevel * 5;
     }
     return PLAYER_BASE_SPEED;
   }
