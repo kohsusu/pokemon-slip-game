@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader }     from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader }    from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { buildDragonite } from './dragonite.js?v=1';
+import { buildDragonite } from './dragonite.js?v=2';
 import {
   POKEMON_LEVELS, POKEMON_POOL, ZONE_MIN_LEVEL, ZONE_MAX_LEVEL,
   RARITY_COLORS, RARITY_CSS, SPRITE_BASE, ZONE_LENGTH, ROAD_WIDTH,
