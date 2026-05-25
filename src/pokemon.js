@@ -10,7 +10,8 @@ import {
 
 // ── 3D model config ────────────────────────────────────────────────────────────
 const MODEL_BASE   = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
-const TARGET_HEIGHT = 2.2;   // world units — models auto-scaled to this height
+const TARGET_HEIGHT   = 2.6;   // world units — models auto-scaled to this height
+const GLTF_TIMEOUT_MS = 6000;  // fallback to 2-D sprite if GLTF takes too long
 
 // ── GLTF loader (shared, Draco compressed) ─────────────────────────────────────
 const _dracoLoader = new DRACOLoader();
@@ -171,68 +172,87 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
 
   // Placeholder sphere — rarity colour, shown until GLTF loads
   const placeholder = new THREE.Mesh(
-    new THREE.SphereGeometry(0.72, 14, 10),
+    new THREE.SphereGeometry(0.87, 14, 10),
     new THREE.MeshLambertMaterial({ color: rarityColor }),
   );
-  placeholder.position.y = 0.72;
+  placeholder.position.y = 0.87;
   placeholder.castShadow = true;
   group._placeholder = placeholder;
   group.add(placeholder);
 
   // Label sprite
   const label = makeLabel(`Lv.${lv} ${pokeName}`, rarityKey);
-  label.position.set(0, 3.2, 0);
+  label.position.set(0, 3.8, 0);
   group._label = label;
   group.add(label);
 
   scene.add(group);
 
+  // ── Shared 2-D fallback helper ────────────────────────────────────────────
+  function _useFallbackSprite() {
+    if (!pokemonRef.group || !group._placeholder) return; // already resolved
+    const ph = group._placeholder;
+    group._placeholder = null;           // mark resolved
+    group.remove(ph);
+    ph.geometry.dispose();
+    ph.material.dispose();
+    loadTexture(pokeId).then(tex => {
+      if (!pokemonRef.group) return;
+      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      const sprite    = new THREE.Sprite(spriteMat);
+      sprite.scale.set(3.4, 3.4, 1);
+      sprite.position.set(0, 1.8, 0);
+      group.add(sprite);
+      label.position.y = 4.2;
+      pokemonRef._fallbackSprite = sprite;
+    });
+  }
+
   // ── Async 3D model load ──────────────────────────────────────────────────
+  // Timeout: if GLTF takes too long, use 2-D sprite immediately
+  const _glbTimer = setTimeout(_useFallbackSprite, GLTF_TIMEOUT_MS);
+
   _loadGltf(pokeId,
     ({ scene: model, animations }) => {
-      if (!pokemonRef.group) return; // already removed from scene
+      clearTimeout(_glbTimer);
+      if (!pokemonRef.group || !group._placeholder) return; // removed or fallback already used
+      group._placeholder = null;   // mark resolved
 
-      _autoFitModel(model);
-      model.traverse(child => {
-        if (child.isMesh) {
-          child.castShadow    = true;
-          child.receiveShadow = true;
+      try {
+        _autoFitModel(model);
+        model.traverse(child => {
+          if (child.isMesh) {
+            child.castShadow    = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        // Remove placeholder, add real model
+        group.remove(placeholder);
+        placeholder.geometry.dispose();
+        placeholder.material.dispose();
+        group.add(model);
+        group._model = model;
+
+        // Raise label above model
+        label.position.y = TARGET_HEIGHT + 1.1;
+
+        // Set up AnimationMixer — prefer an 'idle' clip
+        if (animations.length > 0) {
+          const idleClip = animations.find(a => /idle/i.test(a.name)) ?? animations[0];
+          const mixer    = new THREE.AnimationMixer(model);
+          mixer.clipAction(idleClip).play();
+          pokemonRef._mixer = mixer;
         }
-      });
-
-      // Remove placeholder, add real model
-      group.remove(placeholder);
-      placeholder.geometry.dispose();
-      placeholder.material.dispose();
-      group.add(model);
-      group._model = model;
-
-      // Raise label above model
-      label.position.y = TARGET_HEIGHT + 1.1;
-
-      // Set up AnimationMixer — prefer an 'idle' clip
-      if (animations.length > 0) {
-        const idleClip = animations.find(a => /idle/i.test(a.name)) ?? animations[0];
-        const mixer    = new THREE.AnimationMixer(model);
-        mixer.clipAction(idleClip).play();
-        pokemonRef._mixer = mixer;   // write back to caller's object
+      } catch (_e) {
+        // Model processing failed — fall back to 2-D sprite
+        _useFallbackSprite();
       }
     },
     () => {
       // GLB unavailable — fall back to 2-D artwork sprite
-      loadTexture(pokeId).then(tex => {
-        if (!pokemonRef.group) return;
-        group.remove(placeholder);
-        placeholder.geometry.dispose();
-        placeholder.material.dispose();
-        const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-        const sprite    = new THREE.Sprite(spriteMat);
-        sprite.scale.set(2.8, 2.8, 1);
-        sprite.position.set(0, 1.5, 0);
-        group.add(sprite);
-        label.position.y = 3.5;
-        pokemonRef._fallbackSprite = sprite;
-      });
+      clearTimeout(_glbTimer);
+      _useFallbackSprite();
     },
   );
 
@@ -240,8 +260,11 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const POKEMON_PER_ZONE = 3;
-const INTERACT_DIST    = 2.8;
+const POKEMON_PER_ZONE  = 3;
+const INTERACT_DIST     = 2.8;
+const DECO_X_OFFSET     = 14;   // units from road centre (road half-width=5)
+const DECO_Y            = 10;   // floating height
+const DECO_SCALE        = 10;   // 2-D sprite size in world units (~300% of normal 3.4)
 
 // ── PokemonManager ─────────────────────────────────────────────────────────────
 export class PokemonManager {
@@ -252,8 +275,56 @@ export class PokemonManager {
     this._unlockedTiers = [true, false, false];
     this._networkMode   = false;
     this._byNetId       = new Map();
+    this._decoratives   = [];   // giant floating icons per zone
 
     for (let z = 0; z < ZONES_PER_TIER; z++) this._spawnZone(z);
+    this._buildAllDecorations();
+  }
+
+  // ── Giant decorative Pokémon (one per side per zone, uninteractable) ──────
+
+  _buildAllDecorations() {
+    for (let zoneIdx = 0; zoneIdx < NUM_ZONES; zoneIdx++) {
+      const maxLv   = ZONE_MAX_LEVEL[zoneIdx];
+      const pool    = POKEMON_POOL[maxLv];
+      // Pick the most visually impressive Pokémon (last in the pool list)
+      const picked  = pool[pool.length - 1];
+      const zCenter = -((zoneIdx + 0.5) * ZONE_LENGTH);
+
+      [-DECO_X_OFFSET, DECO_X_OFFSET].forEach((sx, side) => {
+        const group = new THREE.Group();
+        group.position.set(sx, DECO_Y, zCenter);
+        this.scene.add(group);
+
+        // Glowing halo ring behind sprite
+        const ringGeo = new THREE.RingGeometry(DECO_SCALE * 0.52, DECO_SCALE * 0.6, 32);
+        const rarityColor = RARITY_COLORS[ZONE_MAX_LEVEL[zoneIdx] <= 3 ? '2星'
+          : ZONE_MAX_LEVEL[zoneIdx] <= 6 ? '5星' : '神聖'];
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: rarityColor, side: THREE.DoubleSide,
+          transparent: true, opacity: 0.55, depthTest: false,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        group.add(ring);
+
+        // 2-D artwork sprite (guaranteed to load)
+        const sprite = new THREE.Sprite(
+          new THREE.SpriteMaterial({ transparent: true, opacity: 0.92, depthTest: false }),
+        );
+        sprite.scale.set(DECO_SCALE, DECO_SCALE, 1);
+        group.add(sprite);
+        loadTexture(picked.id).then(tex => {
+          sprite.material.map = tex;
+          sprite.material.needsUpdate = true;
+        });
+
+        this._decoratives.push({
+          group, ring, sprite,
+          phase: zoneIdx * 0.8 + side * Math.PI, // stagger hover phases
+        });
+      });
+    }
   }
 
   // ── Network mode ─────────────────────────────────────────────────────────
@@ -420,6 +491,15 @@ export class PokemonManager {
         // Spin aura
         if (p.group._aura) p.group._aura.material.rotation = t * 0.4 + i;
       }
+    });
+
+    // Animate giant decoratives — slow majestic hover + ring pulse
+    this._decoratives.forEach(d => {
+      const bob = Math.sin(t * 0.55 + d.phase) * 1.2;
+      d.group.position.y = DECO_Y + bob;
+      // Slowly face the camera (billboard already handles the sprite)
+      d.ring.rotation.z = t * 0.18 + d.phase;
+      d.ring.material.opacity = 0.35 + Math.sin(t * 1.1 + d.phase) * 0.2;
     });
   }
 
