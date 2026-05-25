@@ -3,7 +3,7 @@ import { createScene }     from './scene.js?v=16';
 import { Road }            from './road.js?v=17';
 import { Player }          from './player.js?v=19';
 import { TsunamiMechanic } from './tsunamiMechanic.js?v=16';
-import { PokemonManager }  from './pokemon.js?v=22';
+import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=23';
 import { PlayerBase }      from './base.js?v=18';
 import { Economy }         from './economy.js?v=16';
 import { Shop }            from './shop.js?v=17';
@@ -586,10 +586,46 @@ function showStartScreen() {
   });
 }
 
+// ── Preload screen ─────────────────────────────────────────────────────────
+function showPreloadScreen() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = `
+      position:fixed;inset:0;z-index:400;
+      background:linear-gradient(160deg,#050e1f 0%,#0d2240 55%,#051428 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      font-family:Arial,sans-serif;color:#fff;gap:18px;
+    `;
+    ov.innerHTML = `
+      <div style="font-size:28px;font-weight:bold;
+           text-shadow:0 0 24px #4af,0 0 48px #08f;letter-spacing:1px;">
+        🐾 小心地滑！救出寶可夢
+      </div>
+      <div style="font-size:14px;color:#9cf;">預先下載 3D 模型中，請稍候…</div>
+      <div style="width:340px;background:#1a2a3a;border-radius:8px;
+           height:14px;overflow:hidden;border:1px solid #2a4a6a;">
+        <div id="_pl-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#2ecc71,#1abc9c);
+             transition:width 0.25s;border-radius:8px;"></div>
+      </div>
+      <div id="_pl-txt" style="font-size:13px;color:#7af;">0 / 0</div>
+    `;
+    document.body.appendChild(ov);
+
+    preloadPokemonModels((loaded, total) => {
+      document.getElementById('_pl-fill').style.width = (loaded / total * 100) + '%';
+      document.getElementById('_pl-txt').textContent = `${loaded} / ${total} 隻完成`;
+    }).then(() => {
+      ov.style.transition = 'opacity 0.4s';
+      ov.style.opacity = '0';
+      setTimeout(() => { ov.remove(); resolve(); }, 420);
+    });
+  });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────
 buildTierGates();
 
-showStartScreen().then(({ name, loadSave }) => {
+showPreloadScreen().then(() => showStartScreen()).then(({ name, loadSave }) => {
   if (!loadSave) economy.reset();
   economy.playerName = name;
 

@@ -15,9 +15,9 @@ const _CUSTOM_BUILDERS = new Map([
 ]);
 
 // ── 3D model config ────────────────────────────────────────────────────────────
-const MODEL_BASE   = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
-const TARGET_HEIGHT   = 2.6;   // world units — models auto-scaled to this height
-const GLTF_TIMEOUT_MS = 6000;  // fallback to 2-D sprite if GLTF takes too long
+const MODEL_BASE    = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
+const TARGET_HEIGHT = 2.6;    // world units — models auto-scaled to this height
+const GLTF_TIMEOUT_MS = 30000; // safety fallback (normally preloaded before spawn)
 
 // ── GLTF loader (shared, Draco compressed) ─────────────────────────────────────
 const _dracoLoader = new DRACOLoader();
@@ -25,31 +25,77 @@ _dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.
 const _gltfLoader = new GLTFLoader();
 _gltfLoader.setDRACOLoader(_dracoLoader);
 
-// ── GLTF cache: pokeId → { scene, animations } ────────────────────────────────
-//   Raw GLTF stored once; each Pokémon instance clones the scene via SkeletonUtils.
-const _gltfCache = new Map();
+// ── GLTF cache + pending queue ────────────────────────────────────────────────
+//   _gltfCache:   pokeId → { scene, animations }  (null = confirmed failed)
+//   _gltfPending: pokeId → [{onSuccess, onFail}]  (callbacks waiting for in-flight load)
+const _gltfCache   = new Map();
+const _gltfPending = new Map();
 
 function _loadGltf(pokeId, onSuccess, onFail) {
+  // ① Serve from cache (instant)
   if (_gltfCache.has(pokeId)) {
     const cached = _gltfCache.get(pokeId);
-    onSuccess({
-      scene:      SkeletonUtils.clone(cached.scene),
-      animations: cached.animations,
-    });
+    if (cached === null) { onFail?.(); return; }   // previously failed
+    onSuccess({ scene: SkeletonUtils.clone(cached.scene), animations: cached.animations });
     return;
   }
+  // ② Already in flight — queue this callback
+  if (_gltfPending.has(pokeId)) {
+    _gltfPending.get(pokeId).push({ onSuccess, onFail });
+    return;
+  }
+  // ③ Start a new download
+  _gltfPending.set(pokeId, [{ onSuccess, onFail }]);
   _gltfLoader.load(
     `${MODEL_BASE}${pokeId}.glb`,
     gltf => {
       _gltfCache.set(pokeId, { scene: gltf.scene, animations: gltf.animations });
-      onSuccess({
+      const queue = _gltfPending.get(pokeId) ?? [];
+      _gltfPending.delete(pokeId);
+      queue.forEach(cb => cb.onSuccess({
         scene:      SkeletonUtils.clone(gltf.scene),
         animations: gltf.animations,
-      });
+      }));
     },
     undefined,
-    () => onFail?.(),
+    () => {
+      _gltfCache.set(pokeId, null);  // mark as failed so we never retry
+      const queue = _gltfPending.get(pokeId) ?? [];
+      _gltfPending.delete(pokeId);
+      queue.forEach(cb => cb.onFail?.());
+    },
   );
+}
+
+// ── All unique Pokémon IDs in the game pool ────────────────────────────────────
+const _ALL_POKE_IDS = [...new Set(Object.values(POKEMON_POOL).flat().map(p => p.id))];
+
+/**
+ * Preload all Pokémon GLTF models into _gltfCache before gameplay begins.
+ * Downloads in concurrent batches of BATCH_SIZE.
+ * @param {function(loaded:number, total:number):void} onProgress
+ * @returns {Promise<void>}
+ */
+export function preloadPokemonModels(onProgress) {
+  const toLoad    = _ALL_POKE_IDS.filter(id => !_CUSTOM_BUILDERS.has(id));
+  const total     = toLoad.length;
+  let   loaded    = 0;
+  const BATCH     = 8;   // concurrent downloads per wave
+
+  return (async () => {
+    for (let i = 0; i < toLoad.length; i += BATCH) {
+      await Promise.allSettled(
+        toLoad.slice(i, i + BATCH).map(id =>
+          new Promise(resolve => {
+            _loadGltf(id,
+              () => { loaded++; onProgress?.(loaded, total); resolve(); },
+              () => { loaded++; onProgress?.(loaded, total); resolve(); },
+            );
+          }),
+        ),
+      );
+    }
+  })();
 }
 
 /** Scale model to TARGET_HEIGHT and lift so its feet sit at y=0. */
