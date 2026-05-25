@@ -102,21 +102,24 @@ export function preloadPokemonModels(onProgress) {
   })();
 }
 
-/** Scale model to TARGET_HEIGHT and lift so its feet sit at y=0. */
+/** Scale model to TARGET_HEIGHT and lift so its feet sit at y=0.
+ *  Uses a single Box3 traversal — after uniform scaling by s, min.y
+ *  transforms to min.y * s, so no second setFromObject is needed. */
 function _autoFitModel(model, targetH = TARGET_HEIGHT) {
-  const box  = new THREE.Box3().setFromObject(model);
-  const size = box.getSize(new THREE.Vector3());
-  if (size.y > 0) model.scale.setScalar(targetH / size.y);
-  // Re-compute after scaling, then ground the model
-  const box2 = new THREE.Box3().setFromObject(model);
-  model.position.y -= box2.min.y;
+  const box = new THREE.Box3().setFromObject(model);
+  const h   = box.max.y - box.min.y;
+  if (h > 0) {
+    const s = targetH / h;
+    model.scale.setScalar(s);
+    model.position.y -= box.min.y * s;   // ground feet at y=0
+  }
 }
 
-// ── 2-D texture cache (for player hold-indicators in player.js) ────────────────
+// ── 2-D texture cache (shared — used by pokemon.js AND imported by main_multi.js) ─
 const _texLoader2d  = new THREE.TextureLoader();
 const _textureCache = new Map();
 
-function loadTexture(id) {
+export function loadTexture(id) {
   if (_textureCache.has(id)) return Promise.resolve(_textureCache.get(id));
   return new Promise(resolve => {
     _texLoader2d.load(
@@ -182,19 +185,29 @@ function makeLabel(text, rarityKey) {
   return sprite;
 }
 
+// Cache aura textures by rarity colour — at most 12 unique textures instead of
+// one per Pokémon.  Each sprite still has its own material so rotation can differ.
+const _auraTexCache = new Map();
+
 function makeAura(rarityColor) {
-  const cvs = document.createElement('canvas');
-  cvs.width = cvs.height = 256;
-  const ctx = cvs.getContext('2d');
-  const r = (rarityColor >> 16) & 0xFF;
-  const g = (rarityColor >>  8) & 0xFF;
-  const b =  rarityColor        & 0xFF;
-  const grad = ctx.createRadialGradient(128, 128, 30, 128, 128, 120);
-  grad.addColorStop(0,   `rgba(${r},${g},${b},0.5)`);
-  grad.addColorStop(0.5, `rgba(${r},${g},${b},0.15)`);
-  grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
-  const tex    = new THREE.CanvasTexture(cvs);
+  // Get or create the shared texture for this rarity colour
+  let tex = _auraTexCache.get(rarityColor);
+  if (!tex) {
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = 256;
+    const ctx = cvs.getContext('2d');
+    const r = (rarityColor >> 16) & 0xFF;
+    const g = (rarityColor >>  8) & 0xFF;
+    const b =  rarityColor        & 0xFF;
+    const grad = ctx.createRadialGradient(128, 128, 30, 128, 128, 120);
+    grad.addColorStop(0,   `rgba(${r},${g},${b},0.5)`);
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},0.15)`);
+    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+    tex = new THREE.CanvasTexture(cvs);
+    _auraTexCache.set(rarityColor, tex);
+  }
+  // Each sprite gets its own material — rotation is animated independently
   const mat    = new THREE.SpriteMaterial({
     map: tex, depthTest: false, transparent: true,
     blending: THREE.AdditiveBlending,
@@ -335,6 +348,7 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
 // ── Constants ──────────────────────────────────────────────────────────────────
 const POKEMON_PER_ZONE  = 3;
 const INTERACT_DIST     = 2.8;
+const INTERACT_DIST_SQ  = INTERACT_DIST * INTERACT_DIST;  // avoid sqrt in getNearby
 const DECO_X_OFFSET     = 14;   // units from road centre (road half-width=5)
 const DECO_Y            = 10;   // floating height
 const DECO_SCALE        = 10;   // 2-D sprite size in world units (~300% of normal 3.4)
@@ -579,13 +593,13 @@ export class PokemonManager {
   // ── Interaction helpers ───────────────────────────────────────────────────
 
   getNearby(playerPos) {
-    let best = null, bestDist = INTERACT_DIST;
+    let best = null, bestDist2 = INTERACT_DIST_SQ;   // squared — no sqrt needed
     this.pokemon.forEach(p => {
       if (p.carried) return;
       const dx = p.group.position.x - playerPos.x;
       const dz = p.group.position.z - playerPos.z;
-      const d  = Math.sqrt(dx * dx + dz * dz);
-      if (d < bestDist) { bestDist = d; best = p; }
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestDist2) { bestDist2 = d2; best = p; }
     });
     return best;
   }

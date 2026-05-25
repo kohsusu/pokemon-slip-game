@@ -21,6 +21,7 @@ export class TsunamiMechanic {
     this.warningShown = false;
     this._networkControlled = false;  // true = server drives wave timing
     this._netWarnTO         = null;
+    this._localWarnTO       = null;   // single-player: delay spawn after warning
 
     this._buildWaveMesh();
     this._buildUI();
@@ -153,7 +154,11 @@ export class TsunamiMechanic {
       this.warningShown = true;
       this.currentType  = WAVE_TYPES[Math.floor(Math.random() * WAVE_TYPES.length)];
       this._showWarning();
-      this._spawnWave();
+      // Spawn AFTER the warning period so the player has time to flee
+      clearTimeout(this._localWarnTO);
+      this._localWarnTO = setTimeout(() => {
+        if (!this.active) this._spawnWave();
+      }, WAVE_WARN * 1000);
     }
   }
 

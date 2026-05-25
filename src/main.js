@@ -2,10 +2,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { createScene }     from './scene.js?v=16';
 import { Road }            from './road.js?v=17';
 import { Player }          from './player.js?v=19';
-import { TsunamiMechanic } from './tsunamiMechanic.js?v=16';
-import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=24';
+import { TsunamiMechanic } from './tsunamiMechanic.js?v=17';
+import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=25';
 import { PlayerBase }      from './base.js?v=18';
-import { Economy }         from './economy.js?v=16';
+import { Economy }         from './economy.js?v=18';
 import { Shop }            from './shop.js?v=17';
 import { AudioManager }    from './audio.js?v=16';
 import { TouchControls }   from './touch_controls.js?v=16';
@@ -180,12 +180,11 @@ function hideTierGate(tierIdx) {
 function updateGateLabelPositions() {
   tierGates.forEach(gate => {
     if (!gate.visible) return;
-    // Project 3D position to screen
-    const pos3D = new THREE.Vector3(0, 5.5, gate.gateZ);
-    pos3D.project(camera);
-    const x = (pos3D.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-pos3D.y * 0.5 + 0.5) * window.innerHeight;
-    if (pos3D.z < 1 && y > 0 && y < window.innerHeight) {
+    _gatePos3D.set(0, 5.5, gate.gateZ);
+    _gatePos3D.project(camera);
+    const x = (_gatePos3D.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-_gatePos3D.y * 0.5 + 0.5) * window.innerHeight;
+    if (_gatePos3D.z < 1 && y > 0 && y < window.innerHeight) {
       gate.label.style.display = 'block';
       gate.label.style.left = `${x}px`;
       gate.label.style.top  = `${y}px`;
@@ -197,14 +196,14 @@ function updateGateLabelPositions() {
 }
 
 // ── Camera follow ─────────────────────────────────────────────────────────
-const CAM_OFFSET = new THREE.Vector3(0, 12, 16);
+const CAM_OFFSET  = new THREE.Vector3(0, 12, 16);
+const _camTarget  = new THREE.Vector3();   // reused every frame — no GC
+const _gatePos3D  = new THREE.Vector3();   // reused for gate label projection
 
 function updateCamera() {
   const t = player.position;
-  camera.position.lerp(
-    new THREE.Vector3(t.x + CAM_OFFSET.x, CAM_OFFSET.y, t.z + CAM_OFFSET.z),
-    0.08
-  );
+  _camTarget.set(t.x + CAM_OFFSET.x, CAM_OFFSET.y, t.z + CAM_OFFSET.z);
+  camera.position.lerp(_camTarget, 0.08);
   camera.lookAt(t.x, 1, t.z);
 }
 

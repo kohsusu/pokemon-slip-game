@@ -15,6 +15,7 @@ export class Economy {
     this.gripLevel   = 0;
     this._playerName = '';
     this._saveTimer     = 0;
+    this._displayTimer  = 0;   // throttle HUD DOM writes to ~10 fps
     this.disableAutoSave = false;
     this.unlockedTiers = [true, false, false]; // [low, mid, high]
 
@@ -77,7 +78,13 @@ export class Economy {
         this.save(seatedPokemon);
       }
     }
-    this._moneyEl.textContent = `💰 $${this._fmt(Math.floor(this.money))}`;
+
+    // Throttle DOM write to ~10 fps — avoids layout reflow every frame
+    this._displayTimer += dt;
+    if (this._displayTimer >= 0.1) {
+      this._displayTimer = 0;
+      this._moneyEl.textContent = `💰 $${this._fmt(Math.floor(this.money))}`;
+    }
   }
 
   updateZoneDisplay(zoneIdx) {
