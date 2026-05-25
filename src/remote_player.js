@@ -5,9 +5,9 @@ import { SPRITE_BASE } from './constants.js?v=17';
 // ── Module-level shared geometries (created once, reused by every RemotePlayer) ──
 //   Avoids allocating identical BufferGeometry objects per player.
 const _GEO = {
-  body:    new THREE.BoxGeometry(0.65, 1.05, 0.48),
-  head:    new THREE.SphereGeometry(0.31, 10, 8),
-  leg:     new THREE.BoxGeometry(0.27, 0.58, 0.27),
+  body:    new THREE.BoxGeometry(0.85, 1.35, 0.62),
+  head:    new THREE.SphereGeometry(0.40, 10, 8),
+  leg:     new THREE.BoxGeometry(0.35, 0.75, 0.35),
   pole:    new THREE.CylinderGeometry(0.06, 0.06, 5, 6),
   diamond: new THREE.OctahedronGeometry(0.4),
 };
@@ -98,21 +98,21 @@ export class RemotePlayer {
 
     // Body — shared geometry, per-player material
     const body = new THREE.Mesh(_GEO.body, new THREE.MeshLambertMaterial({ color: hex }));
-    body.position.y = 0.73;
+    body.position.y = 0.93;
     body.castShadow = true;
     this.group.add(body);
 
     // Head — shared geometry, shared neutral material (skin tone, same for all)
     const head = new THREE.Mesh(_GEO.head, new THREE.MeshLambertMaterial({ color: 0xFFCC80 }));
-    head.position.y = 1.56;
+    head.position.y = 2.02;
     head.castShadow = true;
     this.group.add(head);
 
     // Legs — shared geometry, per-player material (shared instance for both legs)
     const legMat = new THREE.MeshLambertMaterial({ color: legHex });
-    [-0.19, 0.19].forEach(ox => {
+    [-0.25, 0.25].forEach(ox => {
       const leg = new THREE.Mesh(_GEO.leg, legMat);
-      leg.position.set(ox, 0.29, 0);
+      leg.position.set(ox, 0.37, 0);
       leg.castShadow = true;
       this.group.add(leg);
     });
@@ -133,12 +133,12 @@ export class RemotePlayer {
 
     // Name badge sprite
     this._nameSprite = makeNameSprite(this.name, this.color);
-    this._nameSprite.position.set(0, 2.8, 0);
+    this._nameSprite.position.set(0, 3.2, 0);
     this.group.add(this._nameSprite);
 
     // Emoji sprite — built once; canvas redrawn in showEmoji() instead of rebuilding
     this._emojiSprite = this._makeEmojiSprite();
-    this._emojiSprite.position.set(0, 3.9, 0);
+    this._emojiSprite.position.set(0, 4.3, 0);
     this._emojiSprite.visible = false;
     this.group.add(this._emojiSprite);
 
@@ -153,7 +153,7 @@ export class RemotePlayer {
     const tex    = new THREE.CanvasTexture(canvas);
     const mat    = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.2, 1.2, 1);
+    sprite.scale.set(1.5, 1.5, 1);
     return sprite;
   }
 

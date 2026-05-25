@@ -1,15 +1,15 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { createScene }     from './scene.js?v=16';
 import { Road }            from './road.js?v=17';
-import { Player }          from './player.js?v=18';
+import { Player }          from './player.js?v=19';
 import { TsunamiMechanic } from './tsunamiMechanic.js?v=16';
-import { PokemonManager }  from './pokemon.js?v=18';
+import { PokemonManager }  from './pokemon.js?v=19';
 import { PlayerBase, getBasePos, getBaseWarpPos } from './base.js?v=18';
 import { Economy }         from './economy.js?v=17';
 import { Shop }            from './shop.js?v=17';
 import { AudioManager }    from './audio.js?v=16';
 import { NetworkManager }  from './network.js?v=16';
-import { RemotePlayer }    from './remote_player.js?v=19';
+import { RemotePlayer }    from './remote_player.js?v=20';
 import { TouchControls }   from './touch_controls.js?v=16';
 import {
   ZONE_LENGTH, ZONES_PER_TIER, TIER_UNLOCK_COST, TIER_NAMES,

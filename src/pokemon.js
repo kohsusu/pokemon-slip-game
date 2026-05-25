@@ -10,7 +10,7 @@ import {
 
 // ── 3D model config ────────────────────────────────────────────────────────────
 const MODEL_BASE   = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
-const TARGET_HEIGHT = 1.6;   // world units — models auto-scaled to this height
+const TARGET_HEIGHT = 2.2;   // world units — models auto-scaled to this height
 
 // ── GLTF loader (shared, Draco compressed) ─────────────────────────────────────
 const _dracoLoader = new DRACOLoader();
@@ -171,17 +171,17 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
 
   // Placeholder sphere — rarity colour, shown until GLTF loads
   const placeholder = new THREE.Mesh(
-    new THREE.SphereGeometry(0.55, 14, 10),
+    new THREE.SphereGeometry(0.72, 14, 10),
     new THREE.MeshLambertMaterial({ color: rarityColor }),
   );
-  placeholder.position.y = 0.55;
+  placeholder.position.y = 0.72;
   placeholder.castShadow = true;
   group._placeholder = placeholder;
   group.add(placeholder);
 
   // Label sprite
   const label = makeLabel(`Lv.${lv} ${pokeName}`, rarityKey);
-  label.position.set(0, 2.5, 0);
+  label.position.set(0, 3.2, 0);
   group._label = label;
   group.add(label);
 
@@ -227,10 +227,10 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
         placeholder.material.dispose();
         const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
         const sprite    = new THREE.Sprite(spriteMat);
-        sprite.scale.set(2.2, 2.2, 1);
-        sprite.position.set(0, 1.2, 0);
+        sprite.scale.set(2.8, 2.8, 1);
+        sprite.position.set(0, 1.5, 0);
         group.add(sprite);
-        label.position.y = 2.8;
+        label.position.y = 3.5;
         pokemonRef._fallbackSprite = sprite;
       });
     },

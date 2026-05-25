@@ -22,27 +22,27 @@ export class Player {
     const group = new THREE.Group();
 
     // Body
-    const bodyGeo = new THREE.BoxGeometry(0.7, 1.0, 0.5);
+    const bodyGeo = new THREE.BoxGeometry(0.9, 1.3, 0.65);
     const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1565C0 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.7;
+    body.position.y = 0.91;
     body.castShadow = true;
     group.add(body);
 
     // Head
-    const headGeo = new THREE.SphereGeometry(0.32, 8, 8);
+    const headGeo = new THREE.SphereGeometry(0.42, 8, 8);
     const headMat = new THREE.MeshLambertMaterial({ color: 0xFFCC80 });
     const head = new THREE.Mesh(headGeo, headMat);
-    head.position.y = 1.55;
+    head.position.y = 2.0;
     head.castShadow = true;
     group.add(head);
 
     // Legs
-    const legGeo = new THREE.BoxGeometry(0.28, 0.6, 0.28);
+    const legGeo = new THREE.BoxGeometry(0.36, 0.78, 0.36);
     const legMat = new THREE.MeshLambertMaterial({ color: 0x0D47A1 });
-    [-0.2, 0.2].forEach(x => {
+    [-0.26, 0.26].forEach(x => {
       const leg = new THREE.Mesh(legGeo, legMat);
-      leg.position.set(x, 0.3, 0);
+      leg.position.set(x, 0.39, 0);
       leg.castShadow = true;
       group.add(leg);
     });
@@ -56,10 +56,10 @@ export class Player {
     for (let i = 0; i < 6; i++) {
       const mat = new THREE.SpriteMaterial({ transparent: true, opacity: 0 });
       const sp  = new THREE.Sprite(mat);
-      sp.scale.set(1.1, 1.1, 1);
+      sp.scale.set(1.4, 1.4, 1);
       // Arrange in a small arc above head
       const angle = (i / 5) * Math.PI - Math.PI / 2;
-      sp.position.set(Math.cos(angle) * 0.8, 2.4 + i * 0.2, 0);
+      sp.position.set(Math.cos(angle) * 1.0, 3.1 + i * 0.25, 0);
       group.add(sp);
       this.holdIndicators.push(sp);
     }
