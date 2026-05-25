@@ -17,7 +17,7 @@ const _CUSTOM_BUILDERS = new Map([
 // ── 3D model config ────────────────────────────────────────────────────────────
 const MODEL_BASE    = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
 const TARGET_HEIGHT = 2.6;    // world units — models auto-scaled to this height
-const GLTF_TIMEOUT_MS = 30000; // safety fallback (normally preloaded before spawn)
+const GLTF_TIMEOUT_MS = 6000; // safety fallback (normally preloaded before spawn)
 
 // ── GLTF loader (shared, Draco compressed) ─────────────────────────────────────
 const _dracoLoader = new DRACOLoader();
@@ -32,11 +32,15 @@ const _gltfCache   = new Map();
 const _gltfPending = new Map();
 
 function _loadGltf(pokeId, onSuccess, onFail) {
-  // ① Serve from cache (instant)
+  // ① Serve from cache — deferred via microtask so callers can set pokemonRef.group first
   if (_gltfCache.has(pokeId)) {
     const cached = _gltfCache.get(pokeId);
-    if (cached === null) { onFail?.(); return; }   // previously failed
-    onSuccess({ scene: SkeletonUtils.clone(cached.scene), animations: cached.animations });
+    if (cached === null) {
+      Promise.resolve().then(() => onFail?.());
+      return;
+    }
+    const payload = { scene: SkeletonUtils.clone(cached.scene), animations: cached.animations };
+    Promise.resolve().then(() => onSuccess(payload));
     return;
   }
   // ② Already in flight — queue this callback
@@ -279,8 +283,8 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
   _loadGltf(pokeId,
     ({ scene: model, animations }) => {
       clearTimeout(_glbTimer);
-      if (!pokemonRef.group || !group._placeholder) return; // removed or fallback already used
-      group._placeholder = null;   // mark resolved
+      // Guard: placeholder gone means fallback already shown (or pokemon disposed)
+      if (!pokemonRef.group || !group._placeholder) return;
 
       try {
         _autoFitModel(model);
@@ -291,10 +295,14 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
           }
         });
 
-        // Remove placeholder, add real model
-        group.remove(placeholder);
-        placeholder.geometry.dispose();
-        placeholder.material.dispose();
+        // Model processed OK — NOW swap out placeholder (keep it alive until here so
+        // the catch block can still call _useFallbackSprite if _autoFitModel throws)
+        const ph = group._placeholder;
+        group._placeholder = null;   // mark resolved
+        group.remove(ph);
+        ph.geometry.dispose();
+        ph.material.dispose();
+
         group.add(model);
         group._model = model;
 
@@ -309,7 +317,8 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
           pokemonRef._mixer = mixer;
         }
       } catch (_e) {
-        // Model processing failed — fall back to 2-D sprite
+        // Model processing failed — placeholder is still set, so _useFallbackSprite works
+        console.warn(`[pokemon] model processing error for #${pokeId}:`, _e);
         _useFallbackSprite();
       }
     },
