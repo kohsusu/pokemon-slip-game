@@ -2,11 +2,17 @@ import * as THREE from 'three';
 import { GLTFLoader }     from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader }    from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { buildDragonite } from './dragonite.js?v=1';
 import {
   POKEMON_LEVELS, POKEMON_POOL, ZONE_MIN_LEVEL, ZONE_MAX_LEVEL,
   RARITY_COLORS, RARITY_CSS, SPRITE_BASE, ZONE_LENGTH, ROAD_WIDTH,
   NUM_ZONES, ZONES_PER_TIER, POKEMON_REFRESH_INTERVAL,
 } from './constants.js?v=17';
+
+// ── Pokémon ID → custom geometry builder (overrides GLTF for these IDs) ────────
+const _CUSTOM_BUILDERS = new Map([
+  [149, buildDragonite],   // 快龍 Dragonite
+]);
 
 // ── 3D model config ────────────────────────────────────────────────────────────
 const MODEL_BASE   = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
@@ -187,6 +193,18 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
   group.add(label);
 
   scene.add(group);
+
+  // ── Custom geometry builder (highest priority, instant, no GLTF needed) ──
+  if (_CUSTOM_BUILDERS.has(pokeId)) {
+    const customModel = _CUSTOM_BUILDERS.get(pokeId)();
+    group.remove(placeholder);
+    placeholder.geometry.dispose();
+    placeholder.material.dispose();
+    group.add(customModel);
+    group._model = customModel;
+    label.position.y = TARGET_HEIGHT + 1.1;
+    return { group };
+  }
 
   // ── Shared 2-D fallback helper ────────────────────────────────────────────
   function _useFallbackSprite() {
