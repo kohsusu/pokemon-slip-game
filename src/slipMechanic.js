@@ -2,7 +2,7 @@ import {
   SLIP_CYCLE, SLIP_DURATION,
   WARN_YELLOW, WARN_RED
 } from './constants.js?v=2';
-import { GROUND_COLOR_SAFE, GROUND_COLOR_YELLOW, GROUND_COLOR_RED } from './road.js?v=2';
+import { GROUND_COLOR_SAFE, GROUND_COLOR_YELLOW, GROUND_COLOR_RED } from './road.js?v=17';
 
 export class SlipMechanic {
   constructor(road) {
