@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { BASE_SEATS_PER_FLOOR } from './constants.js?v=17';
+import { BASE_SEATS_PER_FLOOR } from './constants.js?v=18';
 
 const BASE_W  = 18;
 const BASE_D  = 12;
@@ -50,6 +50,9 @@ export class PlayerBase {
     this._bz     = opts.z        ?? -5;
     this._hex    = opts.colorHex ?? 0x5D4037;
     this.seats   = [];
+    this._seatedCache = [];     // cached result — rebuilt only when seat state changes
+    this._seatedDirty = false;
+    this._nearSq  = 12 * 12;    // 12² — isNearBase threshold, no sqrt needed
     this._buildBase();
   }
 
@@ -111,24 +114,33 @@ export class PlayerBase {
     pokemon.group.position.y += 0.4;
     pokemon.carried = false;
     pokemon.seated  = true;
+    this._seatedDirty = true;
     return emptySeat;
   }
 
   removePokemon(pokemon) {
     const seat = this.seats.find(s => s.pokemon === pokemon);
     if (seat) {
-      seat.pokemon   = null;
-      pokemon.seated = false;
+      seat.pokemon      = null;
+      pokemon.seated    = false;
+      this._seatedDirty = true;
     }
   }
 
+  /** Returns a cached array rebuilt only when seats change — no per-frame allocation. */
   getSeatedPokemon() {
-    return this.seats.filter(s => s.pokemon !== null).map(s => s.pokemon);
+    if (this._seatedDirty) {
+      this._seatedCache = this.seats
+        .filter(s => s.pokemon !== null)
+        .map(s => s.pokemon);
+      this._seatedDirty = false;
+    }
+    return this._seatedCache;
   }
 
   isNearBase(playerPos) {
     const dx = playerPos.x - this._bx;
     const dz = playerPos.z - this._bz;
-    return Math.sqrt(dx * dx + dz * dz) < 12;
+    return dx * dx + dz * dz < this._nearSq;   // no sqrt needed
   }
 }

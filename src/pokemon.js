@@ -2,17 +2,15 @@ import * as THREE from 'three';
 import { GLTFLoader }     from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader }    from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { buildDragonite } from './dragonite.js?v=2';
 import {
   POKEMON_LEVELS, POKEMON_POOL, ZONE_MIN_LEVEL, ZONE_MAX_LEVEL,
   RARITY_COLORS, RARITY_CSS, SPRITE_BASE, ZONE_LENGTH, ROAD_WIDTH,
   NUM_ZONES, ZONES_PER_TIER, POKEMON_REFRESH_INTERVAL,
-} from './constants.js?v=17';
+} from './constants.js?v=18';
 
 // ── Pokémon ID → custom geometry builder (overrides GLTF for these IDs) ────────
-const _CUSTOM_BUILDERS = new Map([
-  [149, buildDragonite],   // 快龍 Dragonite
-]);
+//   Empty — all Pokémon (incl. Dragonite #149) now load via CDN GLTF.
+const _CUSTOM_BUILDERS = new Map();
 
 // ── 3D model config ────────────────────────────────────────────────────────────
 const MODEL_BASE    = 'https://cdn.jsdelivr.net/gh/Pokemon-3D-api/assets@main/models/opt/regular/';
@@ -239,10 +237,10 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
   group._aura = aura;
   group.add(aura);
 
-  // Placeholder sphere — rarity colour, shown until GLTF loads
+  // Placeholder sphere — shared geometry + cached material (do NOT dispose either)
   const placeholder = new THREE.Mesh(
-    new THREE.SphereGeometry(0.87, 14, 10),
-    new THREE.MeshLambertMaterial({ color: rarityColor }),
+    _placeholderGeo,
+    _getPlaceholderMat(rarityColor),
   );
   placeholder.position.y = 0.87;
   placeholder.castShadow = true;
@@ -260,9 +258,7 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
   // ── Custom geometry builder (highest priority, instant, no GLTF needed) ──
   if (_CUSTOM_BUILDERS.has(pokeId)) {
     const customModel = _CUSTOM_BUILDERS.get(pokeId)();
-    group.remove(placeholder);
-    placeholder.geometry.dispose();
-    placeholder.material.dispose();
+    group.remove(placeholder);   // geo + mat are shared — do NOT dispose
     group.add(customModel);
     group._model = customModel;
     label.position.y = TARGET_HEIGHT + 1.1;
@@ -274,9 +270,7 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
     if (!pokemonRef.group || !group._placeholder) return; // already resolved
     const ph = group._placeholder;
     group._placeholder = null;           // mark resolved
-    group.remove(ph);
-    ph.geometry.dispose();
-    ph.material.dispose();
+    group.remove(ph);                    // geo + mat shared — do NOT dispose
     loadTexture(pokeId).then(tex => {
       if (!pokemonRef.group) return;
       const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
@@ -312,9 +306,7 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
         // the catch block can still call _useFallbackSprite if _autoFitModel throws)
         const ph = group._placeholder;
         group._placeholder = null;   // mark resolved
-        group.remove(ph);
-        ph.geometry.dispose();
-        ph.material.dispose();
+        group.remove(ph);            // geo + mat shared — do NOT dispose
 
         group.add(model);
         group._model = model;
@@ -350,8 +342,21 @@ const POKEMON_PER_ZONE  = 3;
 const INTERACT_DIST     = 2.8;
 const INTERACT_DIST_SQ  = INTERACT_DIST * INTERACT_DIST;  // avoid sqrt in getNearby
 const DECO_X_OFFSET     = 14;   // units from road centre (road half-width=5)
-const DECO_Y            = 10;   // floating height
+const DECO_Y            = 6;    // floating height
 const DECO_SCALE        = 10;   // 2-D sprite size in world units (~300% of normal 3.4)
+
+// ── Shared module-level geometries / material cache ────────────────────────────
+// Placeholder sphere — identical for every Pokémon; one BufferGeometry for all
+const _placeholderGeo      = new THREE.SphereGeometry(0.87, 14, 10);
+// Placeholder materials — keyed by rarityColor (max 12 unique colours)
+const _placeholderMatCache = new Map();
+function _getPlaceholderMat(rarityColor) {
+  if (!_placeholderMatCache.has(rarityColor))
+    _placeholderMatCache.set(rarityColor, new THREE.MeshLambertMaterial({ color: rarityColor }));
+  return _placeholderMatCache.get(rarityColor);
+}
+// Decorative ring — all 18 rings (9 zones × 2 sides) use the same parameters
+const _decoRingGeo = new THREE.RingGeometry(DECO_SCALE * 0.52, DECO_SCALE * 0.6, 32);
 
 // ── PokemonManager ─────────────────────────────────────────────────────────────
 export class PokemonManager {
@@ -383,15 +388,14 @@ export class PokemonManager {
         group.position.set(sx, DECO_Y, zCenter);
         this.scene.add(group);
 
-        // Glowing halo ring behind sprite
-        const ringGeo = new THREE.RingGeometry(DECO_SCALE * 0.52, DECO_SCALE * 0.6, 32);
+        // Glowing halo ring behind sprite — shared geometry, per-zone material
         const rarityColor = RARITY_COLORS[ZONE_MAX_LEVEL[zoneIdx] <= 3 ? '2星'
           : ZONE_MAX_LEVEL[zoneIdx] <= 6 ? '5星' : '神聖'];
         const ringMat = new THREE.MeshBasicMaterial({
           color: rarityColor, side: THREE.DoubleSide,
           transparent: true, opacity: 0.55, depthTest: false,
         });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
+        const ring = new THREE.Mesh(_decoRingGeo, ringMat);   // shared geometry
         ring.rotation.x = Math.PI / 2;
         group.add(ring);
 
@@ -635,17 +639,16 @@ export class PokemonManager {
     const g = pokemon.group;
     pokemon.group = null;
 
-    // Dispose label + aura canvas textures (per-pokemon)
+    // Dispose label canvas texture — unique per Pokémon, safe to dispose
     g._label?.material?.map?.dispose();
     g._label?.material?.dispose();
-    g._aura?.material?.map?.dispose();
+    // Aura texture is SHARED via _auraTexCache — only dispose the material, NOT map
     g._aura?.material?.dispose();
-    // Placeholder sphere (may have been removed already if model loaded)
-    g._placeholder?.geometry?.dispose();
-    g._placeholder?.material?.dispose();
-    // Fallback sprite (if 3D model was unavailable)
-    g._fallbackSprite?.material?.map?.dispose();
+    // Placeholder sphere — geometry and material are SHARED module-level objects;
+    // only remove from group (scene.remove(group) already detaches children).
+    // Do NOT dispose _placeholderGeo or _placeholderMatCache entries.
+    // Fallback sprite texture is SHARED via _textureCache — only dispose the material
     g._fallbackSprite?.material?.dispose();
-    // NOTE: GLTF model geometries/materials are shared via cache — do NOT dispose them
+    // NOTE: GLTF model geometries/materials are shared via _gltfCache — do NOT dispose them
   }
 }

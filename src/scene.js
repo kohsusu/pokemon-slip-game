@@ -31,6 +31,7 @@ export function createScene(container) {
   sun.shadow.camera.top = 80;
   sun.shadow.camera.bottom = -80;
   scene.add(sun);
+  scene.add(sun.target);   // must be in scene for target.position updates to take effect
 
   // Clouds (simple box meshes)
   const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -55,5 +56,5 @@ export function createScene(container) {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { scene, camera, renderer };
+  return { scene, camera, renderer, sun };
 }

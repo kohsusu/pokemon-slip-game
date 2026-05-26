@@ -1,20 +1,20 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { createScene }     from './scene.js?v=16';
-import { Road }            from './road.js?v=17';
-import { Player }          from './player.js?v=19';
-import { TsunamiMechanic } from './tsunamiMechanic.js?v=17';
-import { PokemonManager, preloadPokemonModels, loadTexture } from './pokemon.js?v=25';
-import { PlayerBase, getBasePos, getBaseWarpPos } from './base.js?v=18';
-import { Economy }         from './economy.js?v=18';
-import { Shop }            from './shop.js?v=17';
+import { createScene }     from './scene.js?v=17';
+import { Road }            from './road.js?v=18';
+import { Player }          from './player.js?v=21';
+import { TsunamiMechanic } from './tsunamiMechanic.js?v=19';
+import { PokemonManager, preloadPokemonModels, loadTexture } from './pokemon.js?v=29';
+import { PlayerBase, getBasePos, getBaseWarpPos } from './base.js?v=20';
+import { Economy }         from './economy.js?v=20';
+import { Shop }            from './shop.js?v=19';
 import { AudioManager }    from './audio.js?v=16';
 import { NetworkManager }  from './network.js?v=16';
-import { RemotePlayer }    from './remote_player.js?v=20';
+import { RemotePlayer }    from './remote_player.js?v=22';
 import { TouchControls }   from './touch_controls.js?v=16';
 import {
   ZONE_LENGTH, ZONES_PER_TIER, TIER_UNLOCK_COST, TIER_NAMES,
   TIER_CSS_COLORS, ROAD_WIDTH, RARITY_CSS, BASE_SEATS_PER_FLOOR, SPRITE_BASE,
-} from './constants.js?v=17';
+} from './constants.js?v=18';
 
 // NOTE: texture loading goes through loadTexture() (imported from pokemon.js)
 // so all Pokémon artwork shares one cache across the whole game.
@@ -139,7 +139,7 @@ const _createdRemoteBases = new Set(); // playerIds for which we've built a base
 
 // ── Scene ──────────────────────────────────────────────────────────────────────
 const container = document.getElementById('canvas-container');
-const { scene, camera, renderer } = createScene(container);
+const { scene, camera, renderer, sun } = createScene(container);
 
 const audio   = new AudioManager();
 const road    = new Road(scene);
@@ -238,14 +238,26 @@ function updateGateLabelPositions() {
 
 // ── Camera follow ──────────────────────────────────────────────────────────────
 const CAM_OFFSET  = new THREE.Vector3(0, 12, 16);
-const _camTarget  = new THREE.Vector3();   // reused every frame — no GC
-const _gatePos3D  = new THREE.Vector3();   // reused for gate label projection
+const _camTarget    = new THREE.Vector3();   // reused every frame — no GC
+const _gatePos3D    = new THREE.Vector3();   // reused for gate label projection
+const _selfEmojiPos = new THREE.Vector3();   // reused for self-emoji head projection
 
-function updateCamera() {
+function updateCamera(dt) {
   const t = player.position;
+  // Frame-rate-independent lerp: same feel as 0.08/frame at 60 fps at any refresh rate
+  const α = 1 - Math.pow(0.92, dt * 60);
   _camTarget.set(t.x + CAM_OFFSET.x, CAM_OFFSET.y, t.z + CAM_OFFSET.z);
-  camera.position.lerp(_camTarget, 0.08);
-  camera.lookAt(t.x, 1, t.z);
+  camera.position.lerp(_camTarget, α);
+  // Derive lookAt from smoothed camera position — eliminates position/angle mismatch jitter
+  camera.lookAt(
+    camera.position.x - CAM_OFFSET.x,
+    1,
+    camera.position.z - CAM_OFFSET.z,
+  );
+  // Shadow camera follows player along z so all 9 zones get proper shadows
+  sun.position.set(t.x + 30, 80, t.z + 20);
+  sun.target.position.set(t.x, 0, t.z);
+  sun.target.updateMatrixWorld();
 }
 
 // ── Warp flash ─────────────────────────────────────────────────────────────────
@@ -425,9 +437,11 @@ function handleInteraction() {
   }
   ePrev = eNow;
 
-  // ── F: sell held Pokémon (anywhere) ───────────────────────────────────────
+  // ── F: sell held Pokémon (must be near shop) ──────────────────────────────
   if (fNow && !fPrev) {
-    if (player.heldPokemon.length > 0) {
+    if (!shop.isNearShop(player.position)) {
+      if (player.heldPokemon.length > 0) showMsg('💰 賣出請靠近商店！');
+    } else if (player.heldPokemon.length > 0) {
       const p   = player.dropOne();
       if (p.netId != null) net._send({ type: 'pokemon_sell', netId: p.netId });
       pokeMgr.remove(p);
@@ -497,7 +511,9 @@ function updateWaveIndicator() {
 }
 
 // ── Sprint indicator ───────────────────────────────────────────────────────────
-let _sprintEl = null;
+let _sprintEl   = null;
+let _lastSprint = false;   // diff — only write DOM when state changes
+
 function updateSprintIndicator() {
   if (!_sprintEl) {
     _sprintEl = document.createElement('div');
@@ -508,11 +524,22 @@ function updateSprintIndicator() {
     `;
     document.body.appendChild(_sprintEl);
   }
-  _sprintEl.textContent = player.isSprinting ? '⚡ 衝刺中' : '';
+  const s = player.isSprinting;
+  if (s !== _lastSprint) {
+    _lastSprint = s;
+    _sprintEl.textContent = s ? '⚡ 衝刺中' : '';
+  }
 }
 
 // ── Tier unlock panel ──────────────────────────────────────────────────────────
+let _lastTierKey = '';   // cache — tiers unlock at most 2× per game
+
 function updateTierUnlockPanel() {
+  // Tiers change at most twice per game — skip all work if state unchanged
+  const key = economy.unlockedTiers.join('');   // e.g. "100" / "110" / "111"
+  if (key === _lastTierKey) return;
+  _lastTierKey = key;
+
   let el = document.getElementById('tier-unlock-panel');
   if (!el) {
     el = document.createElement('div');
@@ -744,6 +771,7 @@ const BROADCAST_INTERVAL = 0.1;
 
 // ── Main animate loop ──────────────────────────────────────────────────────────
 function animate() {
+  if (_gameOver) return;   // stop rAF on victory — celebration uses CSS only
   requestAnimationFrame(animate);
   const now = performance.now();
   const dt  = Math.min((now - lastTime) / 1000, 0.1);
@@ -787,7 +815,7 @@ function animate() {
     triggerWarpFlash();
   });
 
-  pokeMgr.update(dt, player);
+  pokeMgr.update(dt);
   if (base) {
     base.update(dt);
     economy.update(dt, base.getSeatedPokemon());
@@ -810,7 +838,7 @@ function animate() {
   updateSprintIndicator();
   updateTierUnlockPanel();
   updateGateLabelPositions();
-  updateCamera();
+  updateCamera(dt);
 
   // ── Network position broadcast ─────────────────────────────────────────────
   if (net.connected) {
@@ -837,10 +865,9 @@ function animate() {
 
   // Self emoji bubble above own head
   if (selfEmojiEl.style.display !== 'none') {
-    const ep = new THREE.Vector3(player.position.x, 3.8, player.position.z)
-      .project(camera);
-    selfEmojiEl.style.left = `${(ep.x * 0.5 + 0.5) * window.innerWidth}px`;
-    selfEmojiEl.style.top  = `${(-ep.y * 0.5 + 0.5) * window.innerHeight}px`;
+    _selfEmojiPos.set(player.position.x, 3.8, player.position.z).project(camera);
+    selfEmojiEl.style.left = `${(_selfEmojiPos.x * 0.5 + 0.5) * window.innerWidth}px`;
+    selfEmojiEl.style.top  = `${(-_selfEmojiPos.y * 0.5 + 0.5) * window.innerHeight}px`;
   }
 
   renderer.render(scene, camera);
@@ -867,7 +894,7 @@ document.getElementById('controls-hint').innerHTML = `
   WASD / 方向鍵 移動<br>
   空白鍵 切換衝刺（再按恢復）<br>
   <b>E</b> 抓取 / 存入基地<br>
-  <b>F</b> 賣出一隻（隨時可用）<br>
+  <b>F</b> 賣出一隻（商店旁）<br>
   <b>B</b> 商店（在商店旁）<br>
   <b>1–8</b> 發送表情符號
 `;

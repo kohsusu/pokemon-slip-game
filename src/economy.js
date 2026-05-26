@@ -4,7 +4,7 @@ import {
   AUTO_SAVE_INTERVAL,
   TIER_UNLOCK_COST, TIER_NAMES, TIER_COUNT,
   ZONES_PER_TIER,
-} from './constants.js?v=17';
+} from './constants.js?v=18';
 
 const SAVE_KEY = 'pokemon_slip_save_v3';
 
@@ -24,6 +24,11 @@ export class Economy {
     this._gripEl  = document.getElementById('grip-lv');
     this._holdEl  = document.getElementById('holding-display');
     this._zoneEl  = document.getElementById('zone-display');
+    // Shadow DOM values — only write when content changes
+    this._lastZoneText  = '';
+    this._lastHoldText  = '';
+    this._lastSpeedText = '';
+    this._lastGripText  = '';
 
     this.load();
   }
@@ -88,26 +93,35 @@ export class Economy {
   }
 
   updateZoneDisplay(zoneIdx) {
+    let text;
     if (zoneIdx < 0) {
-      this._zoneEl.textContent = '區間：基地';
+      text = '區間：基地';
     } else {
-      const tier     = Math.floor(zoneIdx / ZONES_PER_TIER);
-      const inTier   = (zoneIdx % ZONES_PER_TIER) + 1;
-      const locked   = !this.unlockedTiers[tier];
-      const label    = locked ? `${TIER_NAMES[tier]} ⛔` : `${TIER_NAMES[tier]} Z${inTier}`;
-      this._zoneEl.textContent = `區間：${label}`;
+      const tier   = Math.floor(zoneIdx / ZONES_PER_TIER);
+      const inTier = (zoneIdx % ZONES_PER_TIER) + 1;
+      const locked = !this.unlockedTiers[tier];
+      text = `區間：${locked ? `${TIER_NAMES[tier]} ⛔` : `${TIER_NAMES[tier]} Z${inTier}`}`;
+    }
+    if (text !== this._lastZoneText) {
+      this._zoneEl.textContent = text;
+      this._lastZoneText = text;
     }
   }
 
   updateHoldingDisplay(heldArr) {
-    if (!heldArr || heldArr.length === 0) {
-      this._holdEl.textContent = '手持：無';
-    } else {
-      const p = heldArr[0];
-      this._holdEl.textContent = `手持：Lv.${p.lv} ${p.rarity} ($${this._fmt(p.income)}/s)`;
+    // Held Pokémon info
+    const holdText = (!heldArr || heldArr.length === 0)
+      ? '手持：無'
+      : `手持：Lv.${heldArr[0].lv} ${heldArr[0].rarity} ($${this._fmt(heldArr[0].income)}/s)`;
+    if (holdText !== this._lastHoldText) {
+      this._holdEl.textContent = holdText;
+      this._lastHoldText = holdText;
     }
-    this._speedEl.textContent = this.speedLevel;
-    this._gripEl.textContent  = this.gripLevel;
+    // Speed / grip levels — rarely change; only write on change
+    const sl = String(this.speedLevel);
+    const gl = String(this.gripLevel);
+    if (sl !== this._lastSpeedText) { this._speedEl.textContent = sl; this._lastSpeedText = sl; }
+    if (gl !== this._lastGripText)  { this._gripEl.textContent  = gl; this._lastGripText  = gl; }
   }
 
   canAfford(amount) { return this.money >= amount; }

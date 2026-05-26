@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { SPRITE_BASE } from './constants.js?v=17';
-// v=19
+import { loadTexture } from './pokemon.js?v=29';   // shared texture cache — no duplicate fetches
+// v=22
 
 // ── Module-level shared geometries (created once, reused by every RemotePlayer) ──
 //   Avoids allocating identical BufferGeometry objects per player.
@@ -11,21 +11,6 @@ const _GEO = {
   pole:    new THREE.CylinderGeometry(0.06, 0.06, 5, 6),
   diamond: new THREE.OctahedronGeometry(0.4),
 };
-
-// ── Module-level Pokémon artwork texture cache ────────────────────────────────
-//   Prevents the same pokeId image being fetched once per carrying player.
-const _artTexCache = new Map();   // pokeId → THREE.Texture
-const _rpTexLoader = new THREE.TextureLoader();
-
-function _loadArtTex(pokeId, onLoad) {
-  if (_artTexCache.has(pokeId)) { onLoad(_artTexCache.get(pokeId)); return; }
-  _rpTexLoader.load(
-    `${SPRITE_BASE}${pokeId}.png`,
-    tex => { _artTexCache.set(pokeId, tex); onLoad(tex); },
-    undefined,
-    () => onLoad(null),
-  );
-}
 
 const LERP_SPEED = 12;
 
@@ -185,7 +170,7 @@ export class RemotePlayer {
    */
   _updateHeldDisplay(list) {
     // Dispose & remove previous per-pokemon sprites
-    // NOTE: we do NOT dispose artwork textures — they live in _artTexCache.
+    // NOTE: we do NOT dispose artwork textures — they live in the shared pokemon.js cache.
     this._heldSpheres.forEach(s => {
       this.group.remove(s);
       if (!s._sharedTex) {
@@ -227,7 +212,7 @@ export class RemotePlayer {
         this.group.add(artSprite);
         this._heldSpheres.push(artSprite);
 
-        _loadArtTex(pk.pokeId, tex => {
+        loadTexture(pk.pokeId).then(tex => {
           if (!tex) return;
           artMat.map     = tex;
           artMat.opacity = 1;

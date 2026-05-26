@@ -2,10 +2,15 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import {
   WAVE_CYCLE, WAVE_WARN, WAVE_TYPES, WAVE_ACTIVE_END_Z,
   ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH,
-} from './constants.js?v=17';
+} from './constants.js?v=18';
 
 const ROAD_TOTAL   = NUM_ZONES * ZONE_LENGTH;
 const WAVE_SPAWN_Z = -(ROAD_TOTAL - 5);   // far end of road (negative z)
+
+// ── Shared spray particle geometry/material (created once per page load) ─────
+//    12 spray meshes reuse these — avoids 12 × BufferGeometry + 12 × Material allocs
+const _sprayGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const _sprayMat = new THREE.MeshLambertMaterial({ color: 0xaee3f8, transparent: true, opacity: 0.7 });
 
 export class TsunamiMechanic {
   constructor(scene, road, audio = null) {
@@ -87,10 +92,7 @@ export class TsunamiMechanic {
 
     this.sprays = [];
     for (let i = 0; i < 12; i++) {
-      const s = new THREE.Mesh(
-        new THREE.BoxGeometry(0.4, 0.4, 0.4),
-        new THREE.MeshLambertMaterial({ color: 0xaee3f8, transparent: true, opacity: 0.7 }),
-      );
+      const s = new THREE.Mesh(_sprayGeo, _sprayMat);   // shared geo + mat
       s.visible = false;
       this.scene.add(s);
       this.sprays.push({

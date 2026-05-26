@@ -28,12 +28,20 @@ export const WAVE_TYPES  = [
 export const PLAYER_BASE_SPEED  = 6;
 export const PLAYER_SPRINT_MULT = 1.6;
 
-// ── Speed / Grip upgrade costs (×4 per level, 5 max) ─────────────────────
-// Index = current level → cost to reach (level+1)   [降低約 10 倍]
-export const SPEED_UPGRADE_COSTS = [50_000, 200_000, 800_000, 3_000_000, 10_000_000];
-export const GRIP_UPGRADE_COSTS  = [50_000, 200_000, 800_000, 3_000_000, 10_000_000];
-export const MAX_SPEED_LEVEL = 5;
-export const MAX_GRIP_LEVEL  = 5;
+// ── Speed / Grip upgrade costs (10 levels; ≈×4 per level) ────────────────
+// Index = current level → cost to reach (level+1)
+export const SPEED_UPGRADE_COSTS = [
+  50_000, 200_000, 800_000, 3_000_000, 10_000_000,       // Lv 1-5
+  40_000_000, 150_000_000, 600_000_000,                   // Lv 6-8
+  2_000_000_000, 8_000_000_000,                           // Lv 9-10
+];
+export const GRIP_UPGRADE_COSTS  = [
+  50_000, 200_000, 800_000, 3_000_000, 10_000_000,
+  40_000_000, 150_000_000, 600_000_000,
+  2_000_000_000, 8_000_000_000,
+];
+export const MAX_SPEED_LEVEL = 10;
+export const MAX_GRIP_LEVEL  = 10;
 
 // ── Carry (fixed at 1, no upgrade) ───────────────────────────────────────
 export const CARRY_CAPACITY = 1;

@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { PLAYER_BASE_SPEED, PLAYER_SPRINT_MULT, ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, CARRY_CAPACITY } from './constants.js?v=17';
+import { PLAYER_BASE_SPEED, PLAYER_SPRINT_MULT, ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, CARRY_CAPACITY } from './constants.js?v=18';
 
 export class Player {
   constructor(scene) {
@@ -51,15 +51,13 @@ export class Player {
     this.scene.add(group);
     this.mesh = group;
 
-    // Up to 6 hold-indicators floating above head (one per carry slot)
+    // Hold-indicator sprites above head — one per carry slot (CARRY_CAPACITY = 1)
     this.holdIndicators = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < this.carryCapacity(); i++) {
       const mat = new THREE.SpriteMaterial({ transparent: true, opacity: 0 });
       const sp  = new THREE.Sprite(mat);
       sp.scale.set(1.4, 1.4, 1);
-      // Arrange in a small arc above head
-      const angle = (i / 5) * Math.PI - Math.PI / 2;
-      sp.position.set(Math.cos(angle) * 1.0, 3.1 + i * 0.25, 0);
+      sp.position.set(0, 3.2, 0);   // centered above head; bobbed in update()
       group.add(sp);
       this.holdIndicators.push(sp);
     }
@@ -118,11 +116,10 @@ export class Player {
     this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, minZ, 20);
     this.mesh.position.y = 0;
 
-    // Bob held pokemon sprites
-    const t = performance.now() / 1000;
-    this.holdIndicators.forEach((sp, i) => {
-      sp.position.y = 2.3 + Math.sin(t * 2 + i) * 0.08;
-    });
+    // Bob the held Pokémon sprite — only when actually carrying something
+    if (this.heldPokemon.length > 0 && this.holdIndicators[0]) {
+      this.holdIndicators[0].position.y = 3.2 + Math.sin(performance.now() / 1000 * 2) * 0.1;
+    }
   }
 
   // ── Carry methods ─────────────────────────────────────────────────────────

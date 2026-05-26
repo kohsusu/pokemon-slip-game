@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, ZONES_PER_TIER, TIER_COLORS_HEX } from './constants.js?v=17';
+import { ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, ZONES_PER_TIER, TIER_COLORS_HEX } from './constants.js?v=18';
 
 export const GROUND_COLOR_SAFE   = 0x4CAF50;
 export const GROUND_COLOR_YELLOW = 0xFFC107;
@@ -27,8 +27,10 @@ export class Road {
     this.scene.add(roadMesh);
 
     // ── Side walls: InstancedMesh per tier (1 draw call × 3 tiers) ────────
-    //   Each tier has ZONES_PER_TIER zones × 2 sides = 6 instances
-    const wallGeo = new THREE.BoxGeometry(0.5, 1.5, ZONE_LENGTH);
+    //   Each tier has ZONES_PER_TIER zones × 2 sides = 6 instances.
+    //   Shorten by 0.1 so adjacent zone-wall end-faces don't share the same
+    //   plane — that coplanarity caused z-fighting (flickering) at boundaries.
+    const wallGeo = new THREE.BoxGeometry(0.5, 1.5, ZONE_LENGTH - 0.1);
 
     TIER_COLORS_HEX.forEach((color, tier) => {
       const count   = ZONES_PER_TIER * 2;   // 6

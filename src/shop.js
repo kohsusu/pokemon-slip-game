@@ -2,10 +2,18 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import {
   SPEED_UPGRADE_COSTS, GRIP_UPGRADE_COSTS,
   MAX_SPEED_LEVEL, MAX_GRIP_LEVEL,
-} from './constants.js?v=17';
+} from './constants.js?v=18';
 
 const SHOP_X = 0;    // centred between the two front bases (x=±26)
 const SHOP_Z = 14;   // behind the road-start platform, beyond front bases
+const SHOP_NEAR_SQ = 36;   // 6² — isNearShop threshold, no sqrt needed
+
+// ── Shared statue geometry + materials (max 20 statues, only 2 types) ────────
+const _statueGeo  = new THREE.BoxGeometry(0.5, 1.2, 0.5);
+const _statueMats = {
+  speed: new THREE.MeshLambertMaterial({ color: 0x42A5F5 }),
+  grip:  new THREE.MeshLambertMaterial({ color: 0x66BB6A }),
+};
 
 export class Shop {
   constructor(scene, economy, player, audio = null) {
@@ -116,12 +124,9 @@ export class Shop {
   }
 
   _addStatue(type) {
-    const count  = this.statues[type].length;
-    const colors = { speed: 0x42A5F5, grip: 0x66BB6A };
+    const count   = this.statues[type].length;
     const offsets = { speed: -1.5, grip: 1.5 };
-    const geo    = new THREE.BoxGeometry(0.5, 1.2, 0.5);
-    const mat    = new THREE.MeshLambertMaterial({ color: colors[type] });
-    const statue = new THREE.Mesh(geo, mat);
+    const statue  = new THREE.Mesh(_statueGeo, _statueMats[type]);   // shared
     statue.position.set(SHOP_X + offsets[type], 0.6, SHOP_Z + 3.5 + count * 0.8);
     statue.castShadow = true;
     this.scene.add(statue);
@@ -162,6 +167,6 @@ export class Shop {
   isNearShop(playerPos) {
     const dx = playerPos.x - SHOP_X;
     const dz = playerPos.z - SHOP_Z;
-    return Math.sqrt(dx * dx + dz * dz) < 6;
+    return dx * dx + dz * dz < SHOP_NEAR_SQ;   // 6² — no sqrt needed
   }
 }
