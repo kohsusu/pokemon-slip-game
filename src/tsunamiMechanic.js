@@ -142,153 +142,7 @@ export class TsunamiMechanic {
     document.body.appendChild(banner);
     this._banner = banner;
 
-    // ── 蒼龍惡鬼 demon-face CSS ────────────────────────────────────────────
-    if (!document.getElementById('_tsunami-face-css')) {
-      const s = document.createElement('style');
-      s.id = '_tsunami-face-css';
-      s.textContent = `
-        #tsunami-face {
-          position:fixed; left:50%; top:18%;
-          transform:translate(-50%,-50%);
-          width:320px; height:280px;
-          z-index:16; pointer-events:none;
-          display:none;
-        }
-        #tsunami-face.tf-visible {
-          display:block;
-          animation:tfFadeIn 1.4s ease forwards;
-        }
-        @keyframes tfFadeIn {
-          from { opacity:0; transform:translate(-50%,-50%) scale(0.6); }
-          to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
-        }
-        .tf-aura {
-          position:absolute; inset:-70px;
-          background:radial-gradient(ellipse, rgba(0,210,255,0.44) 0%, rgba(0,100,200,0.18) 42%, transparent 70%);
-          border-radius:50%;
-          animation:tfAura 0.9s ease-in-out infinite alternate;
-        }
-        @keyframes tfAura {
-          from { transform:scale(0.87); opacity:0.68; }
-          to   { transform:scale(1.10); opacity:1; }
-        }
-        .tf-brow-l, .tf-brow-r {
-          position:absolute; top:14px;
-          width:82px; height:12px;
-          background:rgba(0,210,255,0.88);
-          border-radius:6px;
-          box-shadow:0 0 10px #0ff, 0 0 22px #0af;
-        }
-        .tf-brow-l { left:6px;  transform:rotate(22deg); }
-        .tf-brow-r { right:6px; transform:rotate(-22deg); }
-        .tf-eye-l, .tf-eye-r {
-          position:absolute; top:34px;
-          width:84px; height:62px;
-          background:radial-gradient(ellipse, #fff 0%, #00ffff 30%, #0088cc 62%, transparent 100%);
-          border-radius:50%;
-          box-shadow:0 0 26px #0ff, 0 0 55px #0af, 0 0 90px #0088ff;
-          animation:tfEye 0.44s ease-in-out infinite alternate;
-          overflow:hidden;
-        }
-        @keyframes tfEye {
-          from { transform:scaleY(1); }
-          to   { transform:scaleY(0.80); }
-        }
-        .tf-eye-l { left:8px; }
-        .tf-eye-r { right:8px; }
-        .tf-pupil {
-          position:absolute; left:50%; top:50%;
-          transform:translate(-50%,-50%);
-          width:30px; height:42px;
-          background:#000a14; border-radius:40%;
-        }
-        .tf-nose {
-          position:absolute; left:50%; top:48%;
-          transform:translate(-50%,-50%);
-          width:0; height:0;
-          border-left:16px solid transparent;
-          border-right:16px solid transparent;
-          border-top:28px solid rgba(0,165,220,0.65);
-          filter:drop-shadow(0 0 6px #0af);
-        }
-        .tf-mouth {
-          position:absolute; bottom:8px; left:5%; right:5%;
-          height:84px;
-          background:radial-gradient(ellipse at 50% 0%, #002244 0%, #000811 65%);
-          border-radius:0 0 55% 55%;
-          border-top:3px solid rgba(0,210,255,0.78);
-          box-shadow:0 0 20px rgba(0,210,255,0.55) inset;
-          overflow:hidden;
-        }
-        .tf-fangs { display:flex; justify-content:center; gap:5px; padding-top:2px; }
-        .tf-fang {
-          background:rgba(200,245,255,0.93);
-          clip-path:polygon(15% 0%, 85% 0%, 65% 100%, 35% 100%);
-          box-shadow:0 0 6px #0af;
-        }
-        .tf-big    { width:28px; height:38px; }
-        .tf-sml    { width:20px; height:26px; }
-        .tf-ctr    { height:46px !important; }
-        .tf-drip {
-          position:absolute; bottom:0;
-          background:rgba(0,210,255,0.52); border-radius:0 0 50% 50%;
-          animation:tfDrip var(--dd,1.8s) ease-in var(--dl,0s) infinite;
-        }
-        @keyframes tfDrip {
-          0%   { height:0; opacity:0.9; }
-          70%  { height:30px; }
-          100% { height:30px; opacity:0; transform:translateY(8px); }
-        }
-
-        /* ── Screen edge glow ── */
-        #tsunami-edge-glow {
-          position:fixed; inset:0; pointer-events:none; z-index:21;
-          display:none;
-          animation:tfEdge 0.7s ease-in-out infinite alternate;
-        }
-        @keyframes tfEdge {
-          from { box-shadow:inset 0 0 70px rgba(0,150,255,0.22); }
-          to   { box-shadow:inset 0 0 155px rgba(0,220,255,0.62),
-                            inset 0 0 260px rgba(0,100,200,0.20); }
-        }
-      `;
-      document.head.appendChild(s);
-    }
-
-    // Demon face element
-    const face = document.createElement('div');
-    face.id = 'tsunami-face';
-    face.innerHTML = `
-      <div class="tf-aura"></div>
-      <div class="tf-brow-l"></div>
-      <div class="tf-brow-r"></div>
-      <div class="tf-eye-l"><div class="tf-pupil"></div></div>
-      <div class="tf-eye-r"><div class="tf-pupil"></div></div>
-      <div class="tf-nose"></div>
-      <div class="tf-mouth">
-        <div class="tf-fangs">
-          <div class="tf-fang tf-sml"></div>
-          <div class="tf-fang tf-big"></div>
-          <div class="tf-fang tf-sml"></div>
-          <div class="tf-fang tf-big tf-ctr"></div>
-          <div class="tf-fang tf-sml"></div>
-          <div class="tf-fang tf-big"></div>
-          <div class="tf-fang tf-sml"></div>
-        </div>
-        <div class="tf-drip" style="width:6px;left:14%;--dd:1.6s;--dl:0s"></div>
-        <div class="tf-drip" style="width:8px;left:33%;--dd:1.9s;--dl:0.45s"></div>
-        <div class="tf-drip" style="width:5px;left:56%;--dd:1.4s;--dl:0.2s"></div>
-        <div class="tf-drip" style="width:7px;left:75%;--dd:2.1s;--dl:0.75s"></div>
-      </div>
-    `;
-    document.body.appendChild(face);
-    this._face = face;
-
-    // Screen edge glow overlay
-    const edgeGlow = document.createElement('div');
-    edgeGlow.id = 'tsunami-edge-glow';
-    document.body.appendChild(edgeGlow);
-    this._edgeGlow = edgeGlow;
+    // (demon face removed — was blocking the gameplay view)
   }
 
   // ── Main update ───────────────────────────────────────────────────────────
@@ -359,10 +213,6 @@ export class TsunamiMechanic {
     this._alert.style.display = 'block';
     this._alert.textContent   = '🌊 海嘯來了！';
 
-    // Show demon face + screen glow
-    this._face.classList.add('tf-visible');
-    this._edgeGlow.style.display = 'block';
-
     // Switch to tense music
     this._audio?.startTenseMusic?.();
   }
@@ -413,9 +263,6 @@ export class TsunamiMechanic {
     this.coronas.forEach(c => { c.mesh.visible  = false; });
     this._alert.style.display = 'none';
 
-    // Hide demon face + screen glow
-    this._face.classList.remove('tf-visible');
-    this._edgeGlow.style.display = 'none';
     if (this._lastGroundColorHex !== 0x4CAF50) {
       this._lastGroundColorHex = 0x4CAF50;
       this.road.setGroundColor(0x4CAF50);

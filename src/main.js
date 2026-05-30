@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createScene }     from './scene.js?v=18';
 import { Road }            from './road.js?v=19';
 import { Player }          from './player.js?v=23';
-import { TsunamiMechanic } from './tsunamiMechanic.js?v=20';
+import { TsunamiMechanic } from './tsunamiMechanic.js?v=22';
 import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=31';
 import { PlayerBase }      from './base.js?v=20';
 import { Economy }         from './economy.js?v=21';
