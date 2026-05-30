@@ -213,9 +213,9 @@ function makeAura(rarityColor) {
     const r = (rarityColor >> 16) & 0xFF;
     const g = (rarityColor >>  8) & 0xFF;
     const b =  rarityColor        & 0xFF;
-    const grad = ctx.createRadialGradient(128, 128, 30, 128, 128, 120);
-    grad.addColorStop(0,   `rgba(${r},${g},${b},0.5)`);
-    grad.addColorStop(0.5, `rgba(${r},${g},${b},0.15)`);
+    const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 120);
+    grad.addColorStop(0,   `rgba(${r},${g},${b},0.38)`);
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},0.10)`);
     grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
     tex = new THREE.CanvasTexture(cvs);
@@ -227,8 +227,8 @@ function makeAura(rarityColor) {
     blending: THREE.AdditiveBlending,
   });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(4.5, 4.5, 1);
-  sprite.position.set(0, 1.2, 0);
+  sprite.scale.set(2.5, 2.5, 1);
+  sprite.position.set(0, 1.0, 0);
   return sprite;
 }
 
