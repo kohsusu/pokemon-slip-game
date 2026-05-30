@@ -29,13 +29,14 @@ export class TouchControls {
     this._joyCenter   = null;   // { x, y } of current joystick centre (screen px)
     this._btnTouches  = new Map(); // touchId → key code string
 
-    this._joyOuter  = null;
-    this._joyThumb  = null;
-    this._sprintBtn = null;
+    this._joyOuter     = null;
+    this._joyThumb     = null;
+    this._sprintBtn    = null;
+    this._lastSprintOn = null;   // diff — avoid style writes when state unchanged
 
     this._build();
     this._bindEvents();
-    this._startRaf();
+    // NOTE: No separate rAF loop — call tick() from the main game loop instead
   }
 
   // ── Build DOM ─────────────────────────────────────────────────────────────
@@ -263,20 +264,19 @@ export class TouchControls {
     }
   }
 
-  // ── RAF: keep sprint button visually in sync ───────────────────────────────
-  _startRaf() {
-    const tick = () => {
-      if (this._sprintBtn) {
-        const on = this._player.isSprinting;
-        this._sprintBtn.style.background = on
-          ? '#f39c12cc'
-          : '#2980b9bb';
-        this._sprintBtn.style.boxShadow  = on
-          ? '0 0 14px #f39c12, 0 3px 10px rgba(0,0,0,0.4)'
-          : '0 3px 10px rgba(0,0,0,0.4)';
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+  /**
+   * Call once per frame from the main game loop.
+   * Keeps the sprint button visually in sync without a separate rAF loop.
+   * Uses a diff flag so DOM style writes only happen when state actually changes.
+   */
+  tick() {
+    if (!this._sprintBtn) return;
+    const on = this._player.isSprinting;
+    if (on === this._lastSprintOn) return;
+    this._lastSprintOn = on;
+    this._sprintBtn.style.background = on ? '#f39c12cc' : '#2980b9bb';
+    this._sprintBtn.style.boxShadow  = on
+      ? '0 0 14px #f39c12, 0 3px 10px rgba(0,0,0,0.4)'
+      : '0 3px 10px rgba(0,0,0,0.4)';
   }
 }

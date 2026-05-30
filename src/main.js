@@ -1,21 +1,21 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { createScene }     from './scene.js?v=17';
-import { Road }            from './road.js?v=18';
-import { Player }          from './player.js?v=21';
-import { TsunamiMechanic } from './tsunamiMechanic.js?v=19';
-import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=29';
+import * as THREE from 'three';
+import { createScene }     from './scene.js?v=18';
+import { Road }            from './road.js?v=19';
+import { Player }          from './player.js?v=23';
+import { TsunamiMechanic } from './tsunamiMechanic.js?v=20';
+import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=31';
 import { PlayerBase }      from './base.js?v=20';
-import { Economy }         from './economy.js?v=20';
+import { Economy }         from './economy.js?v=21';
 import { Shop }            from './shop.js?v=19';
 import { AudioManager }    from './audio.js?v=16';
-import { TouchControls }   from './touch_controls.js?v=16';
+import { TouchControls }   from './touch_controls.js?v=17';
 import {
   ZONE_LENGTH, ZONES_PER_TIER, TIER_UNLOCK_COST, TIER_NAMES,
   TIER_CSS_COLORS, ROAD_WIDTH, SPRITE_BASE,
-} from './constants.js?v=18';
+} from './constants.js?v=21';
 
 // ── Victory ────────────────────────────────────────────────────────────────
-const VICTORY_THRESHOLD = 10_000_000_000_000; // 10000B
+const VICTORY_THRESHOLD = 1_000_000_000_000_000; // 1000T
 let   _gameOver         = false;
 
 const _RAIN_IDS = [
@@ -25,10 +25,15 @@ const _RAIN_IDS = [
 ];
 
 function _fmtMoney(n) {
-  if (n >= 1e12) return `${(n / 1e9).toFixed(0)}B`;
-  if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
+  if (n >= 1e27) return `${(n/1e27).toFixed(1)}Oc`;
+  if (n >= 1e24) return `${(n/1e24).toFixed(1)}Sp`;
+  if (n >= 1e21) return `${(n/1e21).toFixed(1)}Sx`;
+  if (n >= 1e18) return `${(n/1e18).toFixed(1)}Qi`;
+  if (n >= 1e15) return `${(n/1e15).toFixed(1)}Qa`;
+  if (n >= 1e12) return `${(n/1e12).toFixed(1)}T`;
+  if (n >= 1e9)  return `${(n/1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `${(n/1e6).toFixed(1)}M`;
+  if (n >= 1e3)  return `${(n/1e3).toFixed(0)}K`;
   return String(Math.floor(n));
 }
 
@@ -105,10 +110,10 @@ function startVictoryCelebration(totalMoney) {
 const container = document.getElementById('canvas-container');
 const { scene, camera, renderer, sun } = createScene(container);
 
-const audio   = new AudioManager();
-const road    = new Road(scene);
-const player  = new Player(scene);
-new TouchControls(player);                       // virtual joystick + buttons (touch devices)
+const audio    = new AudioManager();
+const road     = new Road(scene);
+const player   = new Player(scene);
+const controls = new TouchControls(player);      // virtual joystick + buttons (touch devices)
 const tsunami = new TsunamiMechanic(scene, road, audio);
 const pokeMgr = new PokemonManager(scene);
 const base    = new PlayerBase(scene);
@@ -122,23 +127,36 @@ let lastTime = performance.now();
 const tierGates = []; // index 0 = gate before mid, index 1 = gate before high
 
 function buildTierGates() {
-  [1, 2].forEach((tier, i) => {
-    const gateZ  = -(tier * ZONES_PER_TIER * ZONE_LENGTH); // -360 and -720
-    const color  = TIER_CSS_COLORS[tier];
-    const group  = new THREE.Group();
+  // Shared geometries (both gates use same shape, only color + z differ)
+  const _postGeo = new THREE.BoxGeometry(0.4, 5, 0.4);
+  const _beamGeo = new THREE.BoxGeometry(ROAD_WIDTH + 4, 0.4, 0.4);
+  const _pxList  = [];
+  for (let px = -ROAD_WIDTH / 2 - 1; px <= ROAD_WIDTH / 2 + 1; px += 2) _pxList.push(px);
+  const _posM = new THREE.Matrix4();
 
-    // Cross-road barrier posts
-    for (let px = -ROAD_WIDTH / 2 - 1; px <= ROAD_WIDTH / 2 + 1; px += 2) {
-      const postGeo = new THREE.BoxGeometry(0.4, 5, 0.4);
-      const postMat = new THREE.MeshLambertMaterial({ color: tier === 1 ? 0xFF8F00 : 0xE53935 });
-      const post = new THREE.Mesh(postGeo, postMat);
-      post.position.set(px, 2.5, gateZ);
-      group.add(post);
-    }
-    // Horizontal beam
-    const beamGeo = new THREE.BoxGeometry(ROAD_WIDTH + 4, 0.4, 0.4);
-    const beamMat = new THREE.MeshLambertMaterial({ color: tier === 1 ? 0xFF8F00 : 0xE53935 });
-    const beam = new THREE.Mesh(beamGeo, beamMat);
+  [1, 2].forEach((tier) => {
+    const gateZ = -(tier * ZONES_PER_TIER * ZONE_LENGTH);
+    const hex   = tier === 1 ? 0xFF8F00 : 0xE53935;
+    const group = new THREE.Group();
+
+    // Posts as InstancedMesh: 7 posts → 1 draw call (was 7 individual meshes)
+    const postMesh = new THREE.InstancedMesh(
+      _postGeo,
+      new THREE.MeshLambertMaterial({ color: hex }),
+      _pxList.length,
+    );
+    _pxList.forEach((px, idx) => {
+      _posM.makeTranslation(px, 2.5, gateZ);
+      postMesh.setMatrixAt(idx, _posM);
+    });
+    postMesh.instanceMatrix.needsUpdate = true;
+    group.add(postMesh);
+
+    // Horizontal beam — single mesh
+    const beam = new THREE.Mesh(
+      _beamGeo,
+      new THREE.MeshLambertMaterial({ color: hex }),
+    );
     beam.position.set(0, 5, gateZ);
     group.add(beam);
 
@@ -147,7 +165,7 @@ function buildTierGates() {
     label.id = `tier-gate-label-${tier}`;
     label.style.cssText = `
       position:fixed;z-index:5;pointer-events:none;
-      background:${color};color:#fff;font-weight:bold;
+      background:${TIER_CSS_COLORS[tier]};color:#fff;font-weight:bold;
       font-size:13px;padding:4px 14px;border-radius:20px;
       box-shadow:0 2px 8px rgba(0,0,0,0.5);white-space:nowrap;
       display:none;
@@ -161,7 +179,12 @@ function buildTierGates() {
 }
 
 function _fmtShort(n) {
-  if (n >= 1e12) return (n/1e12).toFixed(0)+'T';
+  if (n >= 1e27) return (n/1e27).toFixed(1)+'Oc';
+  if (n >= 1e24) return (n/1e24).toFixed(1)+'Sp';
+  if (n >= 1e21) return (n/1e21).toFixed(1)+'Sx';
+  if (n >= 1e18) return (n/1e18).toFixed(1)+'Qi';
+  if (n >= 1e15) return (n/1e15).toFixed(1)+'Qa';
+  if (n >= 1e12) return (n/1e12).toFixed(1)+'T';
   if (n >= 1e9)  return (n/1e9).toFixed(0)+'B';
   if (n >= 1e6)  return (n/1e6).toFixed(0)+'M';
   if (n >= 1e3)  return (n/1e3).toFixed(0)+'K';
@@ -243,7 +266,7 @@ function handleInteraction() {
         if (!seat) {
           pokeMgr.dropAt(p, player.position.x + (Math.random()-0.5)*2, player.position.z);
           showMsg(`基地座位已滿！${p.name} 掉落在地！`);
-        } else { placed++; }
+        } else { pokeMgr.markSeated(p); placed++; }
       });
       if (placed > 0) { audio.playDeposit(); showMsg(`放入基地 ${placed} 隻寶可夢！`); }
 
@@ -256,7 +279,7 @@ function handleInteraction() {
     } else {
       let picked = 0;
       while (player.canPickup()) {
-        const nearby = pokeMgr.getNearby(player.position);
+        const nearby = pokeMgr.getNearby(player.position, player.getPickupRangeSq());
         if (!nearby) break;
         pokeMgr.markCarried(nearby, true);
         player.pickup(nearby);
@@ -457,6 +480,7 @@ function animate() {
   updateTierUnlockPanel();
   updateGateLabelPositions();
   updateCamera(dt);
+  controls.tick();
   renderer.render(scene, camera);
 }
 
@@ -524,7 +548,8 @@ function showStartScreen() {
         💾 存檔資訊<br>
         <span style="color:#fff;font-weight:bold;">$${fmt(saveData.money||0)}</span>
         ｜ 速度Lv.<b>${saveData.speedLevel||0}</b>
-        ｜ 抓地Lv.<b>${saveData.gripLevel||0}</b>
+        ｜ 磁力Lv.<b>${saveData.magnetLevel||0}</b>
+        ｜ 揹包+<b>${saveData.carryLevel||0}</b>
         ${saveData.playerName ? `<br>上次玩家：<b>${saveData.playerName}</b>` : ''}
       </div>
     ` : '';
@@ -651,28 +676,74 @@ function showPreloadScreen() {
 // ── Boot ──────────────────────────────────────────────────────────────────
 buildTierGates();
 
+// Global error / unhandled-rejection capture — shows a visible red box on screen
+window.addEventListener('unhandledrejection', ev => {
+  const msg = ev.reason?.message ?? String(ev.reason);
+  const errDiv = document.createElement('div');
+  errDiv.style.cssText =
+    'position:fixed;bottom:10px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(180,0,0,0.93);color:#fff;padding:12px 20px;border-radius:10px;' +
+    'z-index:9999;font-size:13px;font-family:monospace;max-width:90vw;word-break:break-all;';
+  errDiv.textContent = `⛔ Promise 錯誤: ${msg}`;
+  document.body.appendChild(errDiv);
+  setTimeout(() => errDiv.remove(), 15000);
+});
+window.onerror = (msg, src, line) => {
+  const errDiv = document.createElement('div');
+  errDiv.style.cssText =
+    'position:fixed;bottom:10px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(180,0,0,0.93);color:#fff;padding:12px 20px;border-radius:10px;' +
+    'z-index:9999;font-size:13px;font-family:monospace;max-width:90vw;word-break:break-all;';
+  errDiv.textContent = `⛔ JS 錯誤: ${msg}  (${src?.split('/').pop()}:${line})`;
+  document.body.appendChild(errDiv);
+};
+
 showPreloadScreen().then(() => showStartScreen()).then(({ name, loadSave }) => {
-  if (!loadSave) economy.reset();
-  economy.playerName = name;
+  try {
+    if (!loadSave) economy.reset();
+    economy.playerName = name;
 
-  // Sync player stats
-  player.speedLevel = economy.speedLevel;
-  player.gripLevel  = economy.gripLevel;
+    // Sync player stats
+    player.speedLevel  = economy.speedLevel;
+    player.magnetLevel = economy.magnetLevel;
+    player.carryLevel  = economy.carryLevel;
 
-  // Sync already-unlocked tiers to Pokémon manager
-  pokeMgr.setInitialTiers(economy.unlockedTiers);
+    // Sync already-unlocked tiers to Pokémon manager
+    pokeMgr.setInitialTiers(economy.unlockedTiers);
 
-  // Hide gates for already-unlocked tiers
-  economy.unlockedTiers.forEach((unlocked, t) => {
-    if (t >= 1 && unlocked) hideTierGate(t);
-  });
+    // Hide gates for already-unlocked tiers
+    economy.unlockedTiers.forEach((unlocked, t) => {
+      if (t >= 1 && unlocked) hideTierGate(t);
+    });
 
-  // Show player name in HUD
-  const nameEl = document.getElementById('player-name-display');
-  if (nameEl) nameEl.textContent = `👤 ${name}`;
+    // Show player name in HUD
+    const nameEl = document.getElementById('player-name-display');
+    if (nameEl) nameEl.textContent = `👤 ${name}`;
 
-  // Start audio & game
-  audio.start();
-  lastTime = performance.now();
-  animate();
+    // Start audio & game
+    audio.start();
+    lastTime = performance.now();
+    animate();
+  } catch (err) {
+    console.error('[BOOT ERROR]', err);
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText =
+      'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+      'background:rgba(180,0,0,0.95);color:#fff;padding:20px 28px;border-radius:14px;' +
+      'z-index:9999;font-size:14px;font-family:monospace;max-width:85vw;' +
+      'word-break:break-all;line-height:1.7;';
+    errDiv.innerHTML = `<b>⛔ 遊戲啟動失敗</b><br>${err.message}<br><small>${
+      (err.stack ?? '').split('\n').slice(0, 4).join('<br>')
+    }</small>`;
+    document.body.appendChild(errDiv);
+  }
+}).catch(err => {
+  console.error('[CHAIN ERROR]', err);
+  const errDiv = document.createElement('div');
+  errDiv.style.cssText =
+    'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+    'background:rgba(140,0,120,0.95);color:#fff;padding:20px 28px;border-radius:14px;' +
+    'z-index:9999;font-size:14px;font-family:monospace;max-width:85vw;word-break:break-all;';
+  errDiv.textContent = `⛔ 流程錯誤: ${err.message ?? err}`;
+  document.body.appendChild(errDiv);
 });

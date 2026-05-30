@@ -6,7 +6,7 @@ import {
   POKEMON_LEVELS, POKEMON_POOL, ZONE_MIN_LEVEL, ZONE_MAX_LEVEL,
   RARITY_COLORS, RARITY_CSS, SPRITE_BASE, ZONE_LENGTH, ROAD_WIDTH,
   NUM_ZONES, ZONES_PER_TIER, POKEMON_REFRESH_INTERVAL,
-} from './constants.js?v=18';
+} from './constants.js?v=21';
 
 // ── Pokémon ID → custom geometry builder (overrides GLTF for these IDs) ────────
 //   Empty — all Pokémon (incl. Dragonite #149) now load via CDN GLTF.
@@ -19,7 +19,7 @@ const GLTF_TIMEOUT_MS = 6000; // safety fallback (normally preloaded before spaw
 
 // ── GLTF loader (shared, Draco compressed) ─────────────────────────────────────
 const _dracoLoader = new DRACOLoader();
-_dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+_dracoLoader.setDecoderPath('./vendor/draco/');
 const _gltfLoader = new GLTFLoader();
 _gltfLoader.setDRACOLoader(_dracoLoader);
 
@@ -46,11 +46,21 @@ function _loadGltf(pokeId, onSuccess, onFail) {
     _gltfPending.get(pokeId).push({ onSuccess, onFail });
     return;
   }
-  // ③ Start a new download
+  // ③ Start a new download (with safety timer so a hanging CDN never blocks forever)
   _gltfPending.set(pokeId, [{ onSuccess, onFail }]);
+
+  const _safetyTimer = setTimeout(() => {
+    if (!_gltfPending.has(pokeId)) return; // already resolved
+    _gltfCache.set(pokeId, null);
+    const q = _gltfPending.get(pokeId);
+    _gltfPending.delete(pokeId);
+    q.forEach(cb => cb.onFail?.());
+  }, GLTF_TIMEOUT_MS);
+
   _gltfLoader.load(
     `${MODEL_BASE}${pokeId}.glb`,
     gltf => {
+      clearTimeout(_safetyTimer);
       _gltfCache.set(pokeId, { scene: gltf.scene, animations: gltf.animations });
       const queue = _gltfPending.get(pokeId) ?? [];
       _gltfPending.delete(pokeId);
@@ -61,6 +71,7 @@ function _loadGltf(pokeId, onSuccess, onFail) {
     },
     undefined,
     () => {
+      clearTimeout(_safetyTimer);
       _gltfCache.set(pokeId, null);  // mark as failed so we never retry
       const queue = _gltfPending.get(pokeId) ?? [];
       _gltfPending.delete(pokeId);
@@ -84,7 +95,7 @@ export function preloadPokemonModels(onProgress) {
   let   loaded    = 0;
   const BATCH     = 8;   // concurrent downloads per wave
 
-  return (async () => {
+  const actualLoad = (async () => {
     for (let i = 0; i < toLoad.length; i += BATCH) {
       await Promise.allSettled(
         toLoad.slice(i, i + BATCH).map(id =>
@@ -98,6 +109,11 @@ export function preloadPokemonModels(onProgress) {
       );
     }
   })();
+
+  // Hard global cap: 30 s maximum — even if every individual timer somehow stacks,
+  // the preload resolves so gameplay always begins.
+  const globalCap = new Promise(res => setTimeout(res, 30_000));
+  return Promise.race([actualLoad, globalCap]);
 }
 
 /** Scale model to TARGET_HEIGHT and lift so its feet sit at y=0.
@@ -341,9 +357,9 @@ function _buildPokemonGroup(scene, pokemonRef, x, z, lv, rarityColor, pokeId, po
 const POKEMON_PER_ZONE  = 3;
 const INTERACT_DIST     = 2.8;
 const INTERACT_DIST_SQ  = INTERACT_DIST * INTERACT_DIST;  // avoid sqrt in getNearby
-const DECO_X_OFFSET     = 14;   // units from road centre (road half-width=5)
-const DECO_Y            = 6;    // floating height
-const DECO_SCALE        = 10;   // 2-D sprite size in world units (~300% of normal 3.4)
+const DECO_X_OFFSET     = 24;   // units from road centre (road half-width=10); well outside road edge
+const DECO_Y            = 9;    // floating height — higher keeps them in upper screen area
+const DECO_SCALE        = 6;    // 2-D sprite size in world units (~175% of normal 3.4)
 
 // ── Shared module-level geometries / material cache ────────────────────────────
 // Placeholder sphere — identical for every Pokémon; one BufferGeometry for all
@@ -363,6 +379,7 @@ export class PokemonManager {
   constructor(scene) {
     this.scene = scene;
     this.pokemon = [];
+    this._field  = [];   // subset: free-standing (not carried, not seated) — for hover & getNearby
     this.refreshTimers = new Array(NUM_ZONES).fill(0);
     this._unlockedTiers = [true, false, false];
     this._networkMode   = false;
@@ -424,6 +441,7 @@ export class PokemonManager {
     this._networkMode = true;
     this.pokemon.forEach(p => this.scene.remove(p.group));
     this.pokemon = [];
+    this._field  = [];
     this._byNetId = new Map();
     this.refreshTimers = new Array(NUM_ZONES).fill(999999);
   }
@@ -456,6 +474,7 @@ export class PokemonManager {
     pokemon.group = group;
 
     this.pokemon.push(pokemon);
+    this._field.push(pokemon);          // starts free-standing
     this._byNetId.set(data.netId, pokemon);
 
     // Always load 2-D texture for the player's hold-indicator
@@ -467,6 +486,8 @@ export class PokemonManager {
   removeByNetId(netId) {
     const p = this._byNetId.get(netId);
     if (!p) return;
+    const fi = this._field.indexOf(p);
+    if (fi >= 0) this._field.splice(fi, 1);
     this._disposeAndRemove(p);
     this.pokemon = this.pokemon.filter(pp => pp !== p);
     this._byNetId.delete(netId);
@@ -500,6 +521,8 @@ export class PokemonManager {
   _clearZone(zoneIdx) {
     this.pokemon = this.pokemon.filter(p => {
       if (p.zone === zoneIdx && !p.seated && !p.carried) {
+        const fi = this._field.indexOf(p);
+        if (fi >= 0) this._field.splice(fi, 1);
         this._disposeAndRemove(p);
         return false;
       }
@@ -548,6 +571,7 @@ export class PokemonManager {
     );
     pokemon.group = group;
     this.pokemon.push(pokemon);
+    this._field.push(pokemon);   // starts free-standing
 
     loadTexture(picked.id).then(tex => { pokemon._tex = tex; });
     return pokemon;
@@ -569,19 +593,12 @@ export class PokemonManager {
       }
     }
 
+    // Iterate only free-standing pokemon for hover + mixer (not carried/seated)
     const t = performance.now() / 1000;
-    this.pokemon.forEach((p, i) => {
-      if (p.carried) return;
-
-      // Advance 3-D animation mixer
+    this._field.forEach((p, i) => {
       p._mixer?.update(dt);
-
-      // Gentle hover (only for free-standing pokemon, not seated ones)
-      if (!p.seated) {
-        p.group.position.y = Math.sin(t * 1.8 + i * 1.3) * 0.08;
-        // Spin aura
-        if (p.group._aura) p.group._aura.material.rotation = t * 0.4 + i;
-      }
+      p.group.position.y = Math.sin(t * 1.8 + i * 1.3) * 0.08;
+      if (p.group._aura) p.group._aura.material.rotation = t * 0.4 + i;
     });
 
     // Animate giant decoratives — slow majestic hover + ring pulse
@@ -596,10 +613,10 @@ export class PokemonManager {
 
   // ── Interaction helpers ───────────────────────────────────────────────────
 
-  getNearby(playerPos) {
-    let best = null, bestDist2 = INTERACT_DIST_SQ;   // squared — no sqrt needed
-    this.pokemon.forEach(p => {
-      if (p.carried) return;
+  getNearby(playerPos, rangeSq = INTERACT_DIST_SQ) {
+    // Use _field — already excludes carried & seated; no extra guards needed
+    let best = null, bestDist2 = rangeSq;   // squared — no sqrt needed
+    this._field.forEach(p => {
       const dx = p.group.position.x - playerPos.x;
       const dz = p.group.position.z - playerPos.z;
       const d2 = dx * dx + dz * dz;
@@ -611,15 +628,38 @@ export class PokemonManager {
   markCarried(pokemon, carried) {
     pokemon.carried = carried;
     pokemon.group.visible = !carried;
+    if (carried) {
+      // Remove from field when picked up
+      const fi = this._field.indexOf(pokemon);
+      if (fi >= 0) this._field.splice(fi, 1);
+    } else if (!pokemon.seated) {
+      // Returned to ground (not seated) — add back to field
+      if (this._field.indexOf(pokemon) < 0) this._field.push(pokemon);
+    }
+  }
+
+  /** Call after base.placePokemon(p) to keep _field in sync. */
+  markSeated(pokemon) {
+    // base.placePokemon already sets pokemon.carried=false, pokemon.seated=true.
+    // The pokemon was carried, so markCarried(true) already removed it from _field.
+    // This is a safety net in case of any edge-case ordering.
+    const fi = this._field.indexOf(pokemon);
+    if (fi >= 0) this._field.splice(fi, 1);
   }
 
   dropAt(pokemon, x, z) {
     pokemon.carried = false;
     pokemon.group.position.set(x, 0, z);
     pokemon.group.visible = true;
+    // Add to field if not seated (may have been removed by markCarried)
+    if (!pokemon.seated && this._field.indexOf(pokemon) < 0) {
+      this._field.push(pokemon);
+    }
   }
 
   remove(pokemon) {
+    const fi = this._field.indexOf(pokemon);
+    if (fi >= 0) this._field.splice(fi, 1);
     this._disposeAndRemove(pokemon);
     this.pokemon = this.pokemon.filter(p => p !== pokemon);
     if (pokemon.netId != null) this._byNetId.delete(pokemon.netId);

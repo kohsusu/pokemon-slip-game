@@ -80,7 +80,11 @@
       <div id="holding-display">手持：無</div>
     </div>
     <div class="hud-panel" id="stats-panel">
-      速度 Lv.<span id="speed-lv">0</span> &nbsp;|&nbsp; 抓地 Lv.<span id="grip-lv">0</span>
+      🏃 Lv.<span id="speed-lv">0</span>
+      &nbsp;｜&nbsp;
+      🧲 Lv.<span id="magnet-lv">0</span>
+      &nbsp;｜&nbsp;
+      🎒 +<span id="carry-lv">0</span>
     </div>
   </div>
 
@@ -95,14 +99,34 @@
   </div>
   <div id="warp-flash"></div>
 
+  <!-- CDN watchdog: fires if Three.js canvas never appears -->
+  <script>
+    setTimeout(function() {
+      if (!document.querySelector('canvas')) {
+        var d = document.createElement('div');
+        d.style.cssText =
+          'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+          'background:rgba(180,0,0,0.95);color:#fff;padding:22px 30px;border-radius:14px;' +
+          'z-index:9999;font-size:14px;font-family:monospace;max-width:88vw;' +
+          'text-align:center;line-height:1.9;';
+        d.innerHTML =
+          '<b>⛔ 遊戲載入失敗</b><br>' +
+          '可能原因：CDN 無法連線 (<code>cdn.jsdelivr.net</code>)<br>' +
+          '或 DRACO 解碼器無法連線 (<code>gstatic.com</code>)<br>' +
+          '<small>請確認網路連線，然後按 Ctrl+Shift+R 強制重新整理</small>';
+        document.body.appendChild(d);
+      }
+    }, 10000);
+  </script>
+
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/addons/"
     }
   }
   </script>
-  <script type="module" src="./src/main.js?v=38"></script>
+  <script type="module" src="./src/main.js?v=43"></script>
 </body>
 </html>

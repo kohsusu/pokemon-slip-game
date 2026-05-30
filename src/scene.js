@@ -1,4 +1,4 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import * as THREE from 'three';
 
 export function createScene(container) {
   const scene = new THREE.Scene();
@@ -33,22 +33,29 @@ export function createScene(container) {
   scene.add(sun);
   scene.add(sun.target);   // must be in scene for target.position updates to take effect
 
-  // Clouds (simple box meshes)
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  for (let i = 0; i < 20; i++) {
-    const g = new THREE.BoxGeometry(
-      8 + Math.random() * 12,
-      3 + Math.random() * 3,
-      6 + Math.random() * 6
+  // Clouds — InstancedMesh: 20 clouds → 1 draw call (was 20 individual BoxGeometry meshes)
+  const _cloudCount = 20;
+  const _cloudGeo   = new THREE.BoxGeometry(1, 1, 1);   // unit cube; scale baked into matrices
+  const _cloudMat   = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const cloudMesh   = new THREE.InstancedMesh(_cloudGeo, _cloudMat, _cloudCount);
+  cloudMesh.castShadow    = false;
+  cloudMesh.receiveShadow = false;
+  const _cm = new THREE.Matrix4();
+  for (let i = 0; i < _cloudCount; i++) {
+    _cm.makeScale(
+      8  + Math.random() * 12,
+      3  + Math.random() * 3,
+      6  + Math.random() * 6,
     );
-    const cloud = new THREE.Mesh(g, cloudMat);
-    cloud.position.set(
+    _cm.setPosition(
       (Math.random() - 0.5) * 160,
       25 + Math.random() * 20,
-      -20 - Math.random() * 100
+      -20 - Math.random() * 100,
     );
-    scene.add(cloud);
+    cloudMesh.setMatrixAt(i, _cm);
   }
+  cloudMesh.instanceMatrix.needsUpdate = true;
+  scene.add(cloudMesh);
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;

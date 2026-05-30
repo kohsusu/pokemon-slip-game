@@ -1,5 +1,5 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, ZONES_PER_TIER, TIER_COLORS_HEX } from './constants.js?v=18';
+import * as THREE from 'three';
+import { ROAD_WIDTH, NUM_ZONES, ZONE_LENGTH, ZONES_PER_TIER, TIER_COLORS_HEX } from './constants.js?v=21';
 
 export const GROUND_COLOR_SAFE   = 0x4CAF50;
 export const GROUND_COLOR_YELLOW = 0xFFC107;
@@ -105,10 +105,12 @@ export class Road {
   setGroundColor(hex) { this.roadMat.color.setHex(hex); }
 
   isInRestZone(x, z) {
-    return this.restZones.some(rz =>
-      x >= rz.minX && x <= rz.maxX &&
-      z >= rz.minZ && z <= rz.maxZ,
-    );
+    // Fast path: player can only be in one zone at a time — skip the other 8 AABB checks
+    if (z >= 0) return false;
+    const idx = Math.min(Math.floor(-z / ZONE_LENGTH), this.restZones.length - 1);
+    const rz  = this.restZones[idx];
+    if (!rz) return false;
+    return x >= rz.minX && x <= rz.maxX && z >= rz.minZ && z <= rz.maxZ;
   }
 
   getZoneIndex(z) {

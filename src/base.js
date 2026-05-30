@@ -1,5 +1,5 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { BASE_SEATS_PER_FLOOR } from './constants.js?v=18';
+import * as THREE from 'three';
+import { BASE_SEATS_PER_FLOOR } from './constants.js?v=21';
 
 const BASE_W  = 18;
 const BASE_D  = 12;

@@ -7,10 +7,11 @@ export class NetworkManager {
     this._url  = wsUrl;
     this._ws   = null;
     this._cbs  = {};           // event type → [handler fn]
-    this.playerId        = null;
-    this.playerColor     = '#ffffff';
-    this.playerColorName = '';
-    this.connected       = false;
+    this.playerId          = null;
+    this.playerColor       = '#ffffff';
+    this.playerColorName   = '';
+    this.connected         = false;
+    this._welcomePrizePool = 0;   // prize pool at connect time
   }
 
   /**
@@ -37,9 +38,10 @@ export class NetworkManager {
         try { msg = JSON.parse(ev.data); } catch { return; }
 
         if (msg.type === 'welcome') {
-          this.playerId        = msg.player.id;
-          this.playerColor     = msg.player.color;
-          this.playerColorName = msg.player.colorName;
+          this.playerId          = msg.player.id;
+          this.playerColor       = msg.player.color;
+          this.playerColorName   = msg.player.colorName;
+          this._welcomePrizePool = msg.prizePool ?? 0;
           resolve(msg);
         } else if (msg.type === 'full') {
           reject(new Error('FULL'));
@@ -87,7 +89,26 @@ export class NetworkManager {
     });
   }
 
-  sendEmoji(emoji)     { this._send({ type: 'emoji',    emoji }); }
-  sendChat(text, name) { this._send({ type: 'chat',     text, name }); }
-  setName(name)        { this._send({ type: 'set_name', name }); }
+  sendEmoji(emoji)     { this._send({ type: 'emoji',      emoji }); }
+  sendChat(text, name) { this._send({ type: 'chat',       text, name }); }
+  setName(name)        { this._send({ type: 'set_name',   name }); }
+  sendQuickChat(key)   { this._send({ type: 'quick_chat', key }); }
+
+  // ── Named Pokémon event methods (keep protocol in one place) ─────────────
+  sendPokemonPickup(netId)     { this._send({ type: 'pokemon_pickup',  netId }); }
+  sendPokemonDrop(netId, x, z) { this._send({ type: 'pokemon_drop',   netId, x, z }); }
+  sendPokemonDeposit(netId)    { this._send({ type: 'pokemon_deposit', netId }); }
+  sendPokemonSell(netId)       { this._send({ type: 'pokemon_sell',    netId }); }
+  sendBaseUpdate(seats)        { this._send({ type: 'base_update',     seats }); }
+
+  // ── Lottery ───────────────────────────────────────────────────────────────
+  sendPrizeContrib(amount)  { this._send({ type: 'prize_contrib', amount }); }
+  sendBuyTicket(cost)       { this._send({ type: 'buy_ticket',    cost   }); }
+  sendSyncTickets(numbers)  { this._send({ type: 'sync_tickets',  numbers }); }
+
+  // ── Gift boxes ────────────────────────────────────────────────────────────
+  sendGiftPickup(giftId)                    { this._send({ type: 'gift_pickup', giftId }); }
+  sendGiftOpen(giftId, currentMoney, speedLevel) {
+    this._send({ type: 'gift_open', giftId, currentMoney, speedLevel: speedLevel | 0 });
+  }
 }
