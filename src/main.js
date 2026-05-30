@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createScene }     from './scene.js?v=18';
-import { Road }            from './road.js?v=19';
+import { Road }            from './road.js?v=20';
 import { Player }          from './player.js?v=23';
 import { TsunamiMechanic } from './tsunamiMechanic.js?v=22';
 import { PokemonManager, preloadPokemonModels } from './pokemon.js?v=33';

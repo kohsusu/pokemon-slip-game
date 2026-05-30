@@ -90,15 +90,31 @@ export class Road {
     this.scene.add(grooveMsh);
     this.scene.add(signMsh);
 
-    // ── Starting platform (wider to cover all four bases) ─────────────────
-    //   Bases: x=±26, z = +10 (front) and z = -6 (back) → need 60 × 30 slab
+    // ── Starting platform (road-width centre + two side bridges to bases) ───
+    //   Bases: x=±26, inner edge x=±16 (BASE_W+2=20, half=10, 26-10=16).
+    //   Three pieces: centre (road-width), left bridge, right bridge.
+    //   Keep each piece within the camera horizontal FOV so they don't bleed
+    //   into the top corners of the screen.
+    const startMat = new THREE.MeshLambertMaterial({ color: 0x8B6914 });
+
+    // Centre strip — same width as road, covers z ≈ -9 to +23
     const startMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(60, 0.4, 32),
-      new THREE.MeshLambertMaterial({ color: 0x8B6914 }),
+      new THREE.BoxGeometry(ROAD_WIDTH, 0.4, 32),
+      startMat,
     );
     startMesh.position.set(0, -0.2, 7);   // covers z ≈ -9 to +23
     startMesh.receiveShadow = true;
     this.scene.add(startMesh);
+
+    // Side bridges: fill gap between road edge (x=±10) and base inner edge (x=±16)
+    // Width = 6, centre at x=±13, same z as centre strip
+    const bridgeGeo = new THREE.BoxGeometry(6, 0.4, 32);
+    [-13, 13].forEach(bx => {
+      const bridge = new THREE.Mesh(bridgeGeo, startMat);
+      bridge.position.set(bx, -0.2, 7);
+      bridge.receiveShadow = true;
+      this.scene.add(bridge);
+    });
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
